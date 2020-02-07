@@ -23,5 +23,6 @@
     "prettier": "^1.19.1",
     "typescript": "^3.7.5",
     "typescript-to-lua": "^0.31.0"
-  }
+  },
+  "dependencies": {}
 }

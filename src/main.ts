@@ -2,7 +2,6 @@ import { Animator } from "./lib/animator";
 import { SpriteSheet } from "./lib/spritesheet";
 import { Animation } from "./lib/animation";
 
-let megaman: Quad;
 let megamanSpritesheet: SpriteSheet;
 
 const scale = {
