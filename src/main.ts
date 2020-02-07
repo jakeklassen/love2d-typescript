@@ -56,6 +56,10 @@ love.load = args => {
 };
 
 love.update = dt => {
+  if (love.keyboard.isDown("escape")) {
+    love.event.quit();
+  }
+
   animator.update(dt);
 };
 
