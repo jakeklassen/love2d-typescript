@@ -14,6 +14,11 @@ const GAME_HEIGHT = 288;
 const animator = new Animator();
 
 love.load = args => {
+  const version = love.getVersion();
+  print(
+    `LOVE version: ${version[0]}.${version[1]}.${version[2]} - ${version[3]}`
+  );
+
   love.window.setMode(GAME_WIDTH * 3, GAME_HEIGHT * 3, {
     vsync: true,
     fullscreen: false,
