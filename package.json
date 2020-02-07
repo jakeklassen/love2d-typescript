@@ -19,8 +19,9 @@
     "copyfiles": "^2.1.1",
     "cross-var": "^1.1.0",
     "love-typescript-definitions": "^0.18.0",
-    "lua-types": "^2.6.2",
+    "lua-types": "^2.7.0",
     "prettier": "^1.19.1",
+    "typescript": "^3.7.5",
     "typescript-to-lua": "^0.31.0"
   }
 }

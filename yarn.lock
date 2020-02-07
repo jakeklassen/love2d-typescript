@@ -1000,7 +1000,7 @@ lru-cache@^4.0.1:
     pseudomap "^1.0.2"
     yallist "^2.1.2"
 
-lua-types@^2.6.2:
+lua-types@^2.7.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/lua-types/-/lua-types-2.7.0.tgz#5fad12e9b6c4241587185ec98f057bae6f0b7e65"
   integrity sha512-XxZUJitEDampMjeYbOIUiiPZkYCv6WjZBPBV4/k6u2J/PWGcA79aP9xdJ2QRfixrJyGJ8LW3dw5Qxq2UIGPOzA==
@@ -1311,7 +1311,7 @@ typescript-to-lua@^0.31.0:
     source-map "^0.7.3"
     typescript "^3.7.3"
 
-typescript@^3.7.3:
+typescript@^3.7.3, typescript@^3.7.5:
   version "3.7.5"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.7.5.tgz#0692e21f65fd4108b9330238aac11dd2e177a1ae"
   integrity sha512-/P5lkRXkWHNAbcJIiHPfRoKqyd7bsyCma1hZNUGfn20qm64T6ZBlrzprymeu918H+mB/0rIg2gGK/BXkhhYgBw==
