@@ -24,5 +24,7 @@
     "typescript": "^3.7.5",
     "typescript-to-lua": "^0.31.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "tiny-ecs": "bakpakin/tiny-ecs"
+  }
 }

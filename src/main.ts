@@ -2,6 +2,8 @@ import { Animator } from "./lib/animator";
 import { SpriteSheet } from "./lib/spritesheet";
 import { Animation } from "./lib/animation";
 
+print(tiny.world);
+
 let megamanSpritesheet: SpriteSheet;
 
 const scale = {

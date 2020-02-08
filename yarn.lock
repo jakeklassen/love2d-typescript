@@ -1292,6 +1292,10 @@ through2@^2.0.1:
     readable-stream "~2.3.6"
     xtend "~4.0.1"
 
+tiny-ecs@bakpakin/tiny-ecs:
+  version "0.0.0"
+  resolved "https://codeload.github.com/bakpakin/tiny-ecs/tar.gz/0f17f116ab2972534105281666856674a9978e8e"
+
 to-fast-properties@^1.0.3:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/to-fast-properties/-/to-fast-properties-1.0.3.tgz#b83571fa4d8c25b82e231b06e3a3055de4ca1a47"

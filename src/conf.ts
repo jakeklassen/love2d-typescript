@@ -7,6 +7,11 @@
 package.path += ";node_modules/?/init.lua";
 // @ts-ignore
 package.path += ";node_modules/?/?.lua";
+// @ts-ignore
+package.path += ";node_modules/tiny-ecs/tiny.lua";
+
+// Load modules
+const tiny = require("tiny-ecs");
 
 love.conf = t => {
   t.window.title = "Love2d TypeScript";
