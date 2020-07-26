@@ -15,7 +15,7 @@ const GAME_HEIGHT = 288;
 
 const animator = new Animator();
 
-love.load = args => {
+love.load = (args) => {
   const version = love.getVersion();
   print(
     `LOVE version: ${version[0]}.${version[1]}.${version[2]} - ${version[3]}`
@@ -57,7 +57,7 @@ love.load = args => {
   animator.play("idle");
 };
 
-love.update = dt => {
+love.update = (dt) => {
   if (love.keyboard.isDown("escape")) {
     love.event.quit();
   }

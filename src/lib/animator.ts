@@ -4,8 +4,6 @@ export class Animator {
   private animations: { [key: string]: Animation } = {};
   private currentAnimation: Animation | null = null;
 
-  constructor() {}
-
   public addAnimation(name: string, animation: Animation) {
     this.animations[name] = animation;
   }
