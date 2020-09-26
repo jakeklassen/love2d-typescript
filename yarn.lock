@@ -993,10 +993,10 @@ loose-envify@^1.0.0:
   dependencies:
     js-tokens "^3.0.0 || ^4.0.0"
 
-love-typescript-definitions@^0.20.3:
-  version "0.20.3"
-  resolved "https://registry.yarnpkg.com/love-typescript-definitions/-/love-typescript-definitions-0.20.3.tgz#8eaf09ed7b05353816b016ec6f4451f708861716"
-  integrity sha512-sEbRqOlNxzJ54VD2OYcm8jaBXOTJHz8/8gC/j+pFyMNFuoxdc5GCYqbVXIBjkUJdQI13D0z05ortYrRoN9UVTg==
+love-typescript-definitions@^0.21.0:
+  version "0.21.0"
+  resolved "https://registry.yarnpkg.com/love-typescript-definitions/-/love-typescript-definitions-0.21.0.tgz#8557e0c63b62b861af4daca4a0c13be9f76e594b"
+  integrity sha512-BeGO0xjR7wMd3u/w/2WNOY9Khqw9GIF+ARMPukaEQMxe86C120P7B9GyHYQYu93Z3VoMWhaQptt9pnHTAg4OMg==
 
 lru-cache@^4.0.1:
   version "4.1.5"
@@ -1105,9 +1105,9 @@ path-parse@^1.0.6:
   integrity sha512-GSmOT2EbHrINBf9SR7CDELwlJ8AENk3Qn7OikK4nFYAu3Ote2+JYNVvkpAEQm3/TLNEJFD/xZJjzyxg3KBWOzw==
 
 prettier@^2.0.5:
-  version "2.0.5"
-  resolved "https://registry.yarnpkg.com/prettier/-/prettier-2.0.5.tgz#d6d56282455243f2f92cc1716692c08aa31522d4"
-  integrity sha512-7PtVymN48hGcO4fGjybyBSIWDsLU4H4XlvOHfq91pz9kkGlonzwTfYkaIEwiRg/dAJF9YlbsduBAgtYLi+8cFg==
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-2.1.2.tgz#3050700dae2e4c8b67c4c3f666cdb8af405e1ce5"
+  integrity sha512-16c7K+x4qVlJg9rEbXl7HEGmQyZlG4R9AgP+oHKRMsMsuk8s+ATStlf1NpDqyBI1HpVyfjLOeMhH2LvuNvV5Vg==
 
 private@^0.1.6, private@^0.1.8:
   version "0.1.8"
@@ -1305,7 +1305,7 @@ through2@^2.0.1:
 
 tiny-ecs@bakpakin/tiny-ecs:
   version "0.0.0"
-  resolved "https://codeload.github.com/bakpakin/tiny-ecs/tar.gz/e095e10d443b0c2240d159d37690a6197c20063e"
+  resolved "https://codeload.github.com/bakpakin/tiny-ecs/tar.gz/afd7d326d70559841c5a0efe76889a66adf8639f"
 
 to-fast-properties@^1.0.3:
   version "1.0.3"

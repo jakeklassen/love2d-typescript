@@ -1,3 +1,5 @@
+import { Quad } from "love.graphics";
+
 export class Animation {
   private elasped = 0;
   private frameTime = 0;
