@@ -13,6 +13,17 @@ const scale = {
 const GAME_WIDTH = 512;
 const GAME_HEIGHT = 288;
 
+const player = {
+  position: {
+    x: 0,
+    y: 0,
+  },
+  velocity: {
+    x: 60,
+    y: 60,
+  },
+};
+
 const animator = new Animator();
 
 love.load = (args) => {
@@ -62,6 +73,22 @@ love.update = (dt) => {
     love.event.quit();
   }
 
+  if (love.keyboard.isDown("left")) {
+    player.position.x -= player.velocity.x * dt;
+  }
+
+  if (love.keyboard.isDown("right")) {
+    player.position.x += player.velocity.x * dt;
+  }
+
+  if (love.keyboard.isDown("up")) {
+    player.position.y -= player.velocity.y * dt;
+  }
+
+  if (love.keyboard.isDown("down")) {
+    player.position.y += player.velocity.y * dt;
+  }
+
   animator.update(dt);
 };
 
@@ -80,8 +107,8 @@ love.draw = () => {
   love.graphics.draw(
     megamanSpritesheet.texture,
     animator.getCurrentAnimation()!.getCurrentFrame(),
-    228,
-    100
+    player.position.x,
+    player.position.y
   );
 
   love.graphics.draw(
