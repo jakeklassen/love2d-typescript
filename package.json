@@ -14,7 +14,7 @@
     "build:tstl": "tstl -p tsconfig.build.json",
     "build:copy": "shx cp -R res game",
     "build:watch": "tstl -w -p tsconfig.build.json",
-    "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" .eslintrc.cjs jest.config.cjs",
+    "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" .eslintrc.cjs",
     "start": "love game --console",
     "test": "vitest"
   },
@@ -27,7 +27,6 @@
     "eslint": "^8.40.0",
     "eslint-config-prettier": "8.8.0",
     "eslint-plugin-prettier": "4.2.1",
-    "esno": "0.16.3",
     "expect": "29.5.0",
     "love-typescript-definitions": "^0.24.3",
     "lua-types": "^2.13.1",

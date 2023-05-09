@@ -1,20 +1,32 @@
-import { Animator } from './lib/animator';
-import { SpriteSheet } from './lib/spritesheet';
-import { Animation } from './lib/animation';
+import { Font, Image } from 'love.graphics';
 
-let megamanSpritesheet: SpriteSheet;
+let shmupSpritesheet: Image;
+let font: Font;
 
 const scale = {
   x: 1,
   y: 1,
 };
-const GAME_WIDTH = 512;
-const GAME_HEIGHT = 288;
+const GAME_WIDTH = 128;
+const GAME_HEIGHT = 128;
+const SCALE = 5;
 
 const player = {
+  direction: {
+    x: 0,
+    y: 0,
+  },
   position: {
     x: 0,
     y: 0,
+  },
+  sprite: {
+    frame: {
+      sourceX: 16,
+      sourceY: 0,
+      width: 8,
+      height: 8,
+    },
   },
   velocity: {
     x: 60,
@@ -22,23 +34,23 @@ const player = {
   },
 };
 
-const animator = new Animator();
-
 love.load = () => {
+  love.window.setTitle('Cherry Bomb');
+
   const version = love.getVersion();
   print(
     `LOVE version: ${version[0]}.${version[1]}.${version[2]} - ${version[3]}`,
   );
 
-  love.window.setMode(GAME_WIDTH * 3, GAME_HEIGHT * 3, {
-    vsync: true,
+  love.window.setMode(GAME_WIDTH * SCALE, GAME_HEIGHT * SCALE, {
     fullscreen: false,
+    vsync: true,
     minwidth: GAME_WIDTH,
     minheight: GAME_HEIGHT,
   });
 
   love.graphics.setBackgroundColor(0, 0, 0);
-  // Preserve the NES "pixelated" look
+  // Preserve the "pixelated" look
   love.graphics.setDefaultFilter('nearest', 'nearest');
 
   scale.x = love.graphics.getWidth() / GAME_WIDTH;
@@ -46,24 +58,15 @@ love.load = () => {
 
   const [content, error] = love.filesystem.read('res/index.txt');
 
-  const megamanSheetImage = love.graphics.newImage('res/images/megaman.png');
-  megamanSpritesheet = new SpriteSheet(megamanSheetImage, 32, 32);
+  if (error != null) {
+    print(error);
+  } else {
+    print(content);
+  }
 
-  animator.addAnimation(
-    'idle',
-    new Animation(
-      [
-        megamanSpritesheet.getFrame(1, 5),
-        megamanSpritesheet.getFrame(1, 4),
-        megamanSpritesheet.getFrame(1, 5),
-        megamanSpritesheet.getFrame(1, 6),
-      ],
-      6,
-      true,
-    ),
-  );
+  font = love.graphics.newFont('res/font/pico-8.ttf', 5);
 
-  animator.play('idle');
+  shmupSpritesheet = love.graphics.newImage('res/images/shmup.png');
 };
 
 love.update = (dt) => {
@@ -71,77 +74,56 @@ love.update = (dt) => {
     love.event.quit();
   }
 
+  player.direction.x = 0;
+  player.direction.y = 0;
+
   if (love.keyboard.isDown('left')) {
-    player.position.x -= player.velocity.x * dt;
+    player.direction.x = -1;
   }
 
   if (love.keyboard.isDown('right')) {
-    player.position.x += player.velocity.x * dt;
+    player.direction.x = 1;
   }
 
   if (love.keyboard.isDown('up')) {
-    player.position.y -= player.velocity.y * dt;
+    player.direction.y = -1;
   }
 
   if (love.keyboard.isDown('down')) {
-    player.position.y += player.velocity.y * dt;
+    player.direction.y = 1;
   }
 
-  animator.update(dt);
+  player.position.x += player.direction.x * player.velocity.x * dt;
+  player.position.y += player.direction.y * player.velocity.y * dt;
 };
 
 love.draw = () => {
   love.graphics.scale(scale.x, scale.y);
   love.graphics.setColor(1, 1, 1, 1);
 
+  love.graphics.circle('fill', 100, 100, 4);
+
+  love.graphics.setFont(font);
   love.graphics.print(
-    'Hello from TypeScript!',
+    // Red text
+    [[1, 0, 0, 1], 'Hello from TypeScript!'],
     GAME_WIDTH / 2 - 50,
     GAME_HEIGHT / 2,
   );
 
   love.graphics.print(`Current FPS: ${love.timer.getFPS()}`, 10, 10);
 
-  const currentAnimation = animator.getCurrentAnimation();
-
-  if (currentAnimation == null) {
-    love.graphics.print('No animation playing', 10, 30);
-
-    return;
-  }
-
   love.graphics.draw(
-    megamanSpritesheet.texture,
-    currentAnimation.getCurrentFrame(),
+    shmupSpritesheet,
+    love.graphics.newQuad(
+      player.sprite.frame.sourceX,
+      player.sprite.frame.sourceY,
+      player.sprite.frame.width,
+      player.sprite.frame.height,
+      shmupSpritesheet.getWidth(),
+      shmupSpritesheet.getHeight(),
+    ),
     player.position.x,
     player.position.y,
-  );
-
-  love.graphics.draw(
-    megamanSpritesheet.texture,
-    megamanSpritesheet.getFrame(1, 5),
-    100,
-    100,
-  );
-
-  love.graphics.draw(
-    megamanSpritesheet.texture,
-    megamanSpritesheet.getFrame(1, 4),
-    132,
-    100,
-  );
-
-  love.graphics.draw(
-    megamanSpritesheet.texture,
-    megamanSpritesheet.getFrame(1, 5),
-    164,
-    100,
-  );
-
-  love.graphics.draw(
-    megamanSpritesheet.texture,
-    megamanSpritesheet.getFrame(1, 6),
-    196,
-    100,
   );
 };
