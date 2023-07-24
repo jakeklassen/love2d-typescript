@@ -6,7 +6,11 @@ export class Animation {
   private isPlaying = false;
   private currentFrame = 1;
 
-  constructor(private quads: Quad[], fps: number, private loop = false) {
+  constructor(
+    private quads: Quad[],
+    fps: number,
+    private loop = false,
+  ) {
     this.frameTime = 1 / fps;
   }
 
