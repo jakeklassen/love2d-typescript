@@ -1,4 +1,4 @@
-import { Animation } from './animation';
+import { Animation } from './animation.js';
 
 export class Animator {
   private animations: { [key: string]: Animation } = {};
