@@ -19,22 +19,22 @@
     "test": "vitest"
   },
   "devDependencies": {
-    "@types/eslint": "8.44.6",
-    "@types/node": "^20.8.8",
-    "@typescript-eslint/eslint-plugin": "6.9.0",
-    "@typescript-eslint/parser": "6.9.0",
+    "@types/eslint": "8.44.7",
+    "@types/node": "^20.9.0",
+    "@typescript-eslint/eslint-plugin": "6.11.0",
+    "@typescript-eslint/parser": "6.11.0",
     "comment-json": "4.2.3",
-    "eslint": "^8.52.0",
+    "eslint": "^8.53.0",
     "eslint-config-prettier": "9.0.0",
     "eslint-plugin-prettier": "5.0.1",
     "expect": "29.7.0",
     "love-typescript-definitions": "^11.4.2",
     "lua-types": "^2.13.1",
-    "prettier": "3.0.3",
+    "prettier": "3.1.0",
     "shx": "0.3.4",
-    "tsx": "^3.14.0",
+    "tsx": "^4.1.1",
     "typescript": "5.2.2",
-    "typescript-to-lua": "^1.20.1",
+    "typescript-to-lua": "^1.21.0",
     "vitest": "^0.34.6"
   }
 }
