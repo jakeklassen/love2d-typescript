@@ -19,10 +19,10 @@
     "test": "vitest"
   },
   "devDependencies": {
-    "@types/eslint": "8.56.6",
-    "@types/node": "^20.11.30",
-    "@typescript-eslint/eslint-plugin": "7.4.0",
-    "@typescript-eslint/parser": "7.4.0",
+    "@types/eslint": "8.56.7",
+    "@types/node": "^20.12.4",
+    "@typescript-eslint/eslint-plugin": "7.5.0",
+    "@typescript-eslint/parser": "7.5.0",
     "comment-json": "4.2.3",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "9.1.0",
@@ -32,8 +32,8 @@
     "lua-types": "^2.13.1",
     "prettier": "3.2.5",
     "shx": "0.3.4",
-    "tsx": "^4.7.1",
-    "typescript": "5.4.3",
+    "tsx": "^4.7.2",
+    "typescript": "5.4.4",
     "typescript-to-lua": "^1.25.1",
     "vitest": "^1.4.0"
   }
