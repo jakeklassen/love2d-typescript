@@ -1,4 +1,8 @@
 import { Font, Image } from 'love.graphics';
+import { World } from 'objecs';
+import { Entity } from './entity.js';
+import { renderingSystemFactory } from './systems/rendering-system.js';
+import { playerSystemFactory } from './systems/update/player-system.js';
 
 let shmupSpritesheet: Image;
 let font: Font;
@@ -33,6 +37,13 @@ const player = {
     y: 60,
   },
 };
+
+const world = new World<Entity>();
+
+world.createEntity(player);
+
+const playerSystem = playerSystemFactory(world);
+const renderingSystem = renderingSystemFactory(world, love.graphics);
 
 love.load = () => {
   love.window.setTitle('Cherry Bomb');
@@ -74,27 +85,7 @@ love.update = (dt) => {
     love.event.quit();
   }
 
-  player.direction.x = 0;
-  player.direction.y = 0;
-
-  if (love.keyboard.isDown('left')) {
-    player.direction.x = -1;
-  }
-
-  if (love.keyboard.isDown('right')) {
-    player.direction.x = 1;
-  }
-
-  if (love.keyboard.isDown('up')) {
-    player.direction.y = -1;
-  }
-
-  if (love.keyboard.isDown('down')) {
-    player.direction.y = 1;
-  }
-
-  player.position.x += player.direction.x * player.velocity.x * dt;
-  player.position.y += player.direction.y * player.velocity.y * dt;
+  playerSystem(dt);
 };
 
 love.draw = () => {
@@ -113,17 +104,5 @@ love.draw = () => {
 
   love.graphics.print(`Current FPS: ${love.timer.getFPS()}`, 10, 10);
 
-  love.graphics.draw(
-    shmupSpritesheet,
-    love.graphics.newQuad(
-      player.sprite.frame.sourceX,
-      player.sprite.frame.sourceY,
-      player.sprite.frame.width,
-      player.sprite.frame.height,
-      shmupSpritesheet.getWidth(),
-      shmupSpritesheet.getHeight(),
-    ),
-    player.position.x,
-    player.position.y,
-  );
+  renderingSystem();
 };

@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      objecs:
+        specifier: ^0.0.22
+        version: 0.0.22
     devDependencies:
       '@types/eslint':
         specifier: 8.56.10
@@ -1126,6 +1130,9 @@ packages:
     resolution: {integrity: sha512-ppwTtiJZq0O/ai0z7yfudtBpWIoxM8yE6nHi1X47eFR2EWORqfbu6CnPlNsjeN683eT0qG6H/Pyf9fCcvjnnnQ==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
+  objecs@0.0.22:
+    resolution: {integrity: sha512-Al8H6VKm9pMXVWn+7mYeKY0/zqLuSKjYMMYgdRnEGlSHTLvbttuH/EsIn+nDS4ezMJjqwyZrB4xfzLNOSf7bog==}
+
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
 
@@ -1392,6 +1399,10 @@ packages:
   type-fest@0.20.2:
     resolution: {integrity: sha512-Ne+eE4r0/iWnpAxD852z3A+N0Bt5RN//NjJwRd2VFHEmrywxf5vsZlh4R6lixl6B+wz/8d+maTSAkN1FIkI3LQ==}
     engines: {node: '>=10'}
+
+  type-fest@4.15.0:
+    resolution: {integrity: sha512-tB9lu0pQpX5KJq54g+oHOLumOx+pMep4RaM6liXh2PKmVRFF+/vAtUP0ZaJ0kOySfVNjF6doBWPHhBhISKdlIA==}
+    engines: {node: '>=16'}
 
   typescript-to-lua@1.25.1:
     resolution: {integrity: sha512-4wV1VCaxTWtrhsNmSkAt0FWTDccoK9U4qcpVrzMdQvhQYyx629J4ivl3vXEh/Z600DfgnF/GGPTa7i96KVpYIA==}
@@ -2498,6 +2509,10 @@ snapshots:
     dependencies:
       path-key: 4.0.0
 
+  objecs@0.0.22:
+    dependencies:
+      type-fest: 4.15.0
+
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
@@ -2737,6 +2752,8 @@ snapshots:
   type-detect@4.0.8: {}
 
   type-fest@0.20.2: {}
+
+  type-fest@4.15.0: {}
 
   typescript-to-lua@1.25.1(typescript@5.4.5):
     dependencies:

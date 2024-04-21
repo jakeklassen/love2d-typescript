@@ -36,5 +36,8 @@
     "typescript": "5.4.5",
     "typescript-to-lua": "^1.25.1",
     "vitest": "^1.5.0"
+  },
+  "dependencies": {
+    "objecs": "^0.0.22"
   }
 }
