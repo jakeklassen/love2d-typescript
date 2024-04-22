@@ -1,8 +1,8 @@
 import { Font, Image } from 'love.graphics';
-import { World } from 'objecs';
-import { Entity } from './entity.js';
-import { renderingSystemFactory } from './systems/rendering-system.js';
-import { playerSystemFactory } from './systems/update/player-system.js';
+import { World } from '#app/lib/ecs/world';
+import { Entity } from './entity';
+import { renderingSystemFactory } from './systems/rendering-system';
+import { playerSystemFactory } from './systems/update/player-system';
 
 let shmupSpritesheet: Image;
 let font: Font;
@@ -15,7 +15,7 @@ const GAME_WIDTH = 128;
 const GAME_HEIGHT = 128;
 const SCALE = 5;
 
-const player = {
+const player: Entity = {
   direction: {
     x: 0,
     y: 0,
@@ -36,14 +36,15 @@ const player = {
     x: 60,
     y: 60,
   },
+  tagPlayer: true,
 };
 
 const world = new World<Entity>();
 
 world.createEntity(player);
 
-const playerSystem = playerSystemFactory(world);
-const renderingSystem = renderingSystemFactory(world, love.graphics);
+let playerSystem: ReturnType<typeof playerSystemFactory>;
+let renderingSystem: ReturnType<typeof renderingSystemFactory>;
 
 love.load = () => {
   love.window.setTitle('Cherry Bomb');
@@ -76,8 +77,10 @@ love.load = () => {
   }
 
   font = love.graphics.newFont('res/font/pico-8.ttf', 5);
-
   shmupSpritesheet = love.graphics.newImage('res/images/shmup.png');
+
+  playerSystem = playerSystemFactory(world);
+  renderingSystem = renderingSystemFactory(world);
 };
 
 love.update = (dt) => {

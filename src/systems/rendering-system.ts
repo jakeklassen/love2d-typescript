@@ -1,16 +1,13 @@
-import { World } from 'objecs';
+import { World } from '../lib/ecs/world.js';
 import { Entity } from '../entity.js';
 
-export function renderingSystemFactory(
-  world: World<Entity>,
-  graphics: typeof import('love.graphics'),
-) {
-  const spriteSheet = graphics.newImage('res/images/shmup.png');
+export function renderingSystemFactory(world: World<Entity>) {
+  const spriteSheet = love.graphics.newImage('res/images/shmup.png');
   const renderables = world.archetype('position', 'sprite');
 
   return function renderingSystem() {
     for (const entity of renderables.entities) {
-      graphics.draw(
+      love.graphics.draw(
         spriteSheet,
         love.graphics.newQuad(
           entity.sprite.frame.sourceX,

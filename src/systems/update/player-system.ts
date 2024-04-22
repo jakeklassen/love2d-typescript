@@ -1,4 +1,4 @@
-import { World } from 'objecs';
+import { World } from '../../lib/ecs/world.js';
 import { Entity } from '../../entity.js';
 
 export function playerSystemFactory(world: World<Entity>) {
