@@ -23,6 +23,7 @@
     "@types/node": "^20.12.7",
     "@typescript-eslint/eslint-plugin": "7.7.1",
     "@typescript-eslint/parser": "7.7.1",
+    "@typescript-to-lua/language-extensions": "^1.19.0",
     "comment-json": "4.2.3",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "9.1.0",
