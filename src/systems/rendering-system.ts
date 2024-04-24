@@ -1,5 +1,5 @@
-import { World } from '../lib/ecs/world.js';
-import { Entity } from '../entity.js';
+import type { Entity } from '../entity';
+import { World } from '../lib/ecs/world';
 
 export function renderingSystemFactory(world: World<Entity>) {
   const spriteSheet = love.graphics.newImage('res/images/shmup.png');

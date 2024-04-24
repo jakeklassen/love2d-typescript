@@ -1,10 +1,9 @@
-import { Font, Image } from 'love.graphics';
 import { World } from '#app/lib/ecs/world';
-import { Entity } from './entity';
+import type { Font } from 'love.graphics';
+import type { Entity } from './entity';
 import { renderingSystemFactory } from './systems/rendering-system';
 import { playerSystemFactory } from './systems/update/player-system';
 
-let shmupSpritesheet: Image;
 let font: Font;
 
 const scale = {
@@ -77,7 +76,6 @@ love.load = () => {
   }
 
   font = love.graphics.newFont('res/font/pico-8.ttf', 5);
-  shmupSpritesheet = love.graphics.newImage('res/images/shmup.png');
 
   playerSystem = playerSystemFactory(world);
   renderingSystem = renderingSystemFactory(world);

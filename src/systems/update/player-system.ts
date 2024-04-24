@@ -1,5 +1,5 @@
-import { World } from '../../lib/ecs/world.js';
-import { Entity } from '../../entity.js';
+import type { Entity } from '../../entity';
+import { World } from '../../lib/ecs/world';
 
 export function playerSystemFactory(world: World<Entity>) {
   const players = world.archetype(

@@ -1,4 +1,4 @@
-import { Quad, Texture } from 'love.graphics';
+import type { Quad, Texture } from 'love.graphics';
 
 export class SpriteSheet {
   private readonly quads: Quad[][] = [];
