@@ -39,6 +39,6 @@
     "vitest": "^1.5.2"
   },
   "dependencies": {
-    "type-fest": "^4.17.0"
+    "type-fest": "^4.18.0"
   }
 }
