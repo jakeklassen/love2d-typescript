@@ -21,8 +21,8 @@
   "devDependencies": {
     "@types/eslint": "8.56.10",
     "@types/node": "^20.12.7",
-    "@typescript-eslint/eslint-plugin": "7.7.1",
-    "@typescript-eslint/parser": "7.7.1",
+    "@typescript-eslint/eslint-plugin": "7.8.0",
+    "@typescript-eslint/parser": "7.8.0",
     "@typescript-to-lua/language-extensions": "^1.19.0",
     "comment-json": "4.2.3",
     "eslint": "^8.57.0",
@@ -36,7 +36,7 @@
     "tsx": "^4.7.3",
     "typescript": "5.4.5",
     "typescript-to-lua": "^1.25.1",
-    "vitest": "^1.5.2"
+    "vitest": "^1.5.3"
   },
   "dependencies": {
     "type-fest": "^4.18.0"
