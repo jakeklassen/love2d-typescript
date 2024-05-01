@@ -33,12 +33,12 @@
     "lua-types": "^2.13.1",
     "prettier": "3.2.5",
     "shx": "0.3.4",
-    "tsx": "^4.7.3",
+    "tsx": "^4.8.2",
     "typescript": "5.4.5",
     "typescript-to-lua": "^1.25.1",
     "vitest": "^1.5.3"
   },
   "dependencies": {
-    "type-fest": "^4.18.0"
+    "type-fest": "^4.18.1"
   }
 }
