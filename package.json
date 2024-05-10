@@ -33,7 +33,7 @@
     "lua-types": "^2.13.1",
     "prettier": "3.2.5",
     "shx": "0.3.4",
-    "tsx": "^4.9.3",
+    "tsx": "^4.9.4",
     "typescript": "5.4.5",
     "typescript-to-lua": "^1.25.1",
     "vitest": "^1.6.0"
