@@ -3,6 +3,7 @@ import type { Font } from 'love.graphics';
 import type { Entity } from './entity';
 import { renderingSystemFactory } from './systems/rendering-system';
 import { playerSystemFactory } from './systems/update/player-system';
+import { circ, fillCircle } from '#app/lib/canvas';
 
 let font: Font;
 
@@ -94,6 +95,9 @@ love.draw = () => {
   love.graphics.setColor(1, 1, 1, 1);
 
   love.graphics.circle('fill', 100, 100, 4);
+
+  fillCircle(love.graphics, 100, 32, 4, [1, 1, 1, 1]);
+  circ(love.graphics, 100, 42, 4, [1, 1, 1, 1]);
 
   love.graphics.setFont(font);
   love.graphics.print(
