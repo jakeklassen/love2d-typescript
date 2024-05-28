@@ -21,8 +21,8 @@
   "devDependencies": {
     "@types/eslint": "8.56.10",
     "@types/node": "^20.12.12",
-    "@typescript-eslint/eslint-plugin": "7.10.0",
-    "@typescript-eslint/parser": "7.10.0",
+    "@typescript-eslint/eslint-plugin": "7.11.0",
+    "@typescript-eslint/parser": "7.11.0",
     "@typescript-to-lua/language-extensions": "^1.19.0",
     "comment-json": "4.2.3",
     "eslint": "^8.57.0",
@@ -39,6 +39,6 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
-    "type-fest": "^4.18.2"
+    "type-fest": "^4.18.3"
   }
 }
