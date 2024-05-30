@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@types/eslint": "8.56.10",
-    "@types/node": "^20.12.12",
+    "@types/node": "^20.12.13",
     "@typescript-eslint/eslint-plugin": "7.11.0",
     "@typescript-eslint/parser": "7.11.0",
     "@typescript-to-lua/language-extensions": "^1.19.0",
