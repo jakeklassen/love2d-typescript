@@ -34,7 +34,7 @@
     "shx": "0.3.4",
     "tsx": "^4.19.2",
     "typescript": "5.7.2",
-    "typescript-to-lua": "^1.28.1",
+    "typescript-to-lua": "^1.29.0",
     "vitest": "^2.1.8"
   }
 }
