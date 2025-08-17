@@ -1,0 +1,3 @@
+# https://github.com/pnpm/pnpm/releases/tag/v10.0.0
+# Respects old pre v10 behaviour to allow all dependencies to run "postinstall" scripts
+neverBuiltDependencies: []
