@@ -19,18 +19,18 @@
     "test": "vitest"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1",
-    "comment-json": "4.4.1",
+    "@types/node": "^24.10.3",
+    "comment-json": "4.5.0",
     "expect": "30.2.0",
-    "love-typescript-definitions": "^11.5.1",
+    "love-typescript-definitions": "^11.5.2",
     "lua-types": "^2.13.1",
-    "oxlint": "^1.29.0",
-    "oxlint-tsgolint": "^0.7.1",
-    "prettier": "3.6.2",
+    "oxlint": "^1.32.0",
+    "oxlint-tsgolint": "^0.8.5",
+    "prettier": "3.7.4",
     "shx": "0.4.0",
-    "tsx": "^4.20.6",
+    "tsx": "^4.21.0",
     "typescript": "5.9.3",
     "typescript-to-lua": "^1.33.0",
-    "vitest": "^4.0.10"
+    "vitest": "^4.0.15"
   }
 }
