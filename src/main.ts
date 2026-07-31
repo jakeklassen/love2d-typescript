@@ -15,7 +15,8 @@ const FIXED_DT = 1 / 60;
 // Clamp accumulated time so a hitch (e.g. window drag) can't trigger a
 // "spiral of death" of catch-up steps.
 const MAX_FRAME_TIME = 0.25;
-const INTERPOLATION = true;
+// Toggle render interpolation at runtime with the "i" key.
+let interpolation = true;
 
 let accumulator = 0;
 
@@ -149,8 +150,14 @@ love.update = (dt) => {
   }
 };
 
+love.keypressed = (key) => {
+  if (key === 'i') {
+    interpolation = !interpolation;
+  }
+};
+
 love.draw = () => {
-  const alpha = INTERPOLATION ? accumulator / FIXED_DT : 1;
+  const alpha = interpolation ? accumulator / FIXED_DT : 1;
 
   const renderX = lerp(player.previousPosition.x, player.position.x, alpha);
   const renderY = lerp(player.previousPosition.y, player.position.y, alpha);
@@ -171,6 +178,11 @@ love.draw = () => {
   );
 
   love.graphics.print(`Current FPS: ${love.timer.getFPS()}`, 10, 10);
+  love.graphics.print(
+    `Interp (i): ${interpolation ? 'ON' : 'OFF'}`,
+    10,
+    GAME_HEIGHT - 10,
+  );
 
   love.graphics.pop();
 
