@@ -14,12 +14,15 @@
     "build:tstl": "tstl -p tsconfig.build.json",
     "build:copy": "shx cp -R res game",
     "build:watch": "tstl -w -p tsconfig.build.json",
+    "pack:love": "pnpm build && node scripts/pack.ts",
     "lint": "oxlint --type-aware",
     "start": "love game --console",
     "test": "vitest"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/node": "^26.1.2",
+    "adm-zip": "^0.6.0",
     "comment-json": "5.0.0",
     "expect": "30.4.1",
     "love-typescript-definitions": "^11.5.3",
