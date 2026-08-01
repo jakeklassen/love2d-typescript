@@ -137,17 +137,23 @@ function emitThrust(ship: ShipEntity, headingX: number, headingY: number) {
   const perpX = -headingY;
   const perpY = headingX;
 
-  const count = love.math.random() < 0.5 ? 2 : 1;
+  const count = love.math.random() < 0.5 ? 3 : 2;
   for (let i = 0; i < count; i++) {
-    const back = rndRange(16, 36);
+    // Slower min speed lets some sparks linger at the nozzle, densifying the base.
+    const back = rndRange(10, 36);
     const spread = rndRange(-7, 7);
+    // Half the sparks die ~25% sooner, thinning the tail while the base stays dense.
+    let life = rndRange(0.16, 0.3);
+    if (love.math.random() < 0.5) {
+      life *= 0.75;
+    }
     createParticle(
       world,
-      nozzleX + perpX * rndRange(-0.6, 0.6),
-      nozzleY + perpY * rndRange(-0.6, 0.6),
+      nozzleX + perpX * rndRange(-0.9, 0.9),
+      nozzleY + perpY * rndRange(-0.9, 0.9),
       -headingX * back + perpX * spread + ship.velocity.x * 0.25,
       -headingY * back + perpY * spread + ship.velocity.y * 0.25,
-      rndRange(0.16, 0.3),
+      life,
       'flame',
       1,
     );
