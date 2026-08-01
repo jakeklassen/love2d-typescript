@@ -15,7 +15,8 @@ export type Entity = {
   velocity?: Vec2;
   ship?: { thrusting: boolean };
   planet?: { radius: number; dark: Color; base: Color; light: Color };
-  star?: { color: Color; size: number };
+  /** `depth` is the parallax factor: 1 scrolls with the world, lower is farther. */
+  star?: { color: Color; size: number; depth: number };
   /** A gently advancing phase used for soft, non-distracting pulsing. */
   pulse?: { time: number; speed: number; amplitude: number };
   /** A short-lived exhaust pixel. `kind` selects its color ramp. */

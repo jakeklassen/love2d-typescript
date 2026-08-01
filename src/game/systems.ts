@@ -1,5 +1,5 @@
 import { Canvas, Image, Quad } from 'love.graphics';
-import { lerp, rndRange } from '../lib/math';
+import { lerp, rndRange, wrap } from '../lib/math';
 import {
   ReadonlyEntityCollection,
   SafeEntity,
@@ -7,6 +7,8 @@ import {
 } from '../lib/objecs/world';
 import { createParticle } from './factories';
 import {
+  CANVAS_HEIGHT,
+  CANVAS_WIDTH,
   GAME_HEIGHT,
   GAME_WIDTH,
   LIGHT_DIR_X,
@@ -143,7 +145,7 @@ function emitThrust(ship: ShipEntity, headingX: number, headingY: number) {
     // Emit across a wide band at the nozzle (fat base), then pull each spark
     // back toward the center axis — stronger the further off-center it starts —
     // so the plume converges to a point as it trails away: a cone.
-    const band = rndRange(-2.5, 2.5);
+    const band = rndRange(-2, 2);
     const converge = -band * rndRange(5, 9) + rndRange(-3, 3);
     // Short life so the plume stays close to the ship instead of streaking out.
     let life = rndRange(0.08, 0.17);
@@ -259,24 +261,23 @@ function drawParticles(
   }
 }
 
-function drawStars(
-  viewLeft: number,
-  viewTop: number,
-  viewRight: number,
-  viewBottom: number,
-) {
-  for (const star of stars.raw) {
-    const p = star.transform.position;
-    if (
-      p.x < viewLeft - 2 ||
-      p.x > viewRight + 2 ||
-      p.y < viewTop - 2 ||
-      p.y > viewBottom + 2
-    ) {
-      continue;
-    }
+// Parallax starfield. Each star scrolls at `depth` × the camera and wraps over
+// a view-sized tile, so the field is effectively infinite and layers at
+// different depths separate to give a sense of distance. Drawn directly in
+// canvas space (not under the world translate): the star's canvas position
+// already folds in the camera, and adding the camera fraction pre-compensates
+// for the whole-screen-pixel blit so each layer stays crisp and smooth.
+const STAR_WRAP_W = CANVAS_WIDTH + 4;
+const STAR_WRAP_H = CANVAS_HEIGHT + 4;
 
+function drawStars(camX: number, camY: number, fracX: number, fracY: number) {
+  for (const star of stars.raw) {
     const s = star.star;
+    const cx =
+      Math.floor(wrap(star.transform.position.x - camX * s.depth + fracX, STAR_WRAP_W)) - 2;
+    const cy =
+      Math.floor(wrap(star.transform.position.y - camY * s.depth + fracY, STAR_WRAP_H)) - 2;
+
     // Soft twinkle: brightness eases within [1 - amplitude, 1].
     const brightness =
       1 - star.pulse.amplitude * (0.5 + 0.5 * Math.sin(star.pulse.time));
@@ -287,13 +288,7 @@ function drawStars(
       s.color[2] * brightness,
       1,
     );
-    love.graphics.rectangle(
-      'fill',
-      Math.floor(p.x),
-      Math.floor(p.y),
-      s.size,
-      s.size,
-    );
+    love.graphics.rectangle('fill', cx, cy, s.size, s.size);
   }
 }
 
@@ -422,8 +417,10 @@ export function renderSystem(
   // granularity without ever landing on a fractional screen pixel (no blur).
   // Sub-pixel off snaps the offset to 0, so scrolling steps a whole low-res
   // pixel (SCALE screen px) at a time.
-  const blitX = subpixel ? -Math.round((camX - flooredCamX) * SCALE) : 0;
-  const blitY = subpixel ? -Math.round((camY - flooredCamY) * SCALE) : 0;
+  const fracX = subpixel ? camX - flooredCamX : 0;
+  const fracY = subpixel ? camY - flooredCamY : 0;
+  const blitX = -Math.round(fracX * SCALE);
+  const blitY = -Math.round(fracY * SCALE);
 
   const viewLeft = flooredCamX;
   const viewTop = flooredCamY;
@@ -434,9 +431,12 @@ export function renderSystem(
   love.graphics.setCanvas(canvas);
   love.graphics.clear(SPACE_COLOR[0], SPACE_COLOR[1], SPACE_COLOR[2], 1);
 
+  // Parallax stars compute their own canvas position, so they draw outside the
+  // world translate.
+  drawStars(camX, camY, fracX, fracY);
+
   love.graphics.push();
   love.graphics.translate(-flooredCamX, -flooredCamY);
-  drawStars(viewLeft, viewTop, viewRight, viewBottom);
   drawPlanets(viewLeft, viewTop, viewRight, viewBottom);
   drawParticles(viewLeft, viewTop, viewRight, viewBottom);
   love.graphics.pop();

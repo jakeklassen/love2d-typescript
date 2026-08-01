@@ -24,7 +24,6 @@ export const SHIP_DRAG = 2.4; // velocity damping coefficient (per second)
 export const SHIP_MAX_SPEED = 115; // pixels / second
 
 export const PLANET_COUNT = 7;
-export const STAR_COUNT = 520;
 
 // Shared light direction for all planets (points from surface toward the
 // light, i.e. up-and-to-the-left). Pre-normalized.

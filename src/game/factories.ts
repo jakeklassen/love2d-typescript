@@ -1,13 +1,8 @@
 import { rndFromList, rndInt, rndRange, TAU } from '../lib/math';
 import { World } from '../lib/objecs/world';
-import {
-  PLANET_COUNT,
-  STAR_COUNT,
-  WORLD_HEIGHT,
-  WORLD_WIDTH,
-} from './constants';
+import { PLANET_COUNT, WORLD_HEIGHT, WORLD_WIDTH } from './constants';
 import { Entity } from './entity';
-import { Pico8, PLANET_PALETTES, PlanetPalette } from './palette';
+import { Color, Pico8, PLANET_PALETTES, PlanetPalette } from './palette';
 
 export function createShip(world: World<Entity>, x: number, y: number) {
   return world.createEntity({
@@ -37,15 +32,17 @@ export function createPlanet(
   });
 }
 
-export function createStar(world: World<Entity>, x: number, y: number) {
-  const roll = love.math.random();
-  const color =
-    roll > 0.92 ? Pico8.white : roll > 0.68 ? Pico8.lightGray : Pico8.lavender;
-  const size = roll > 0.965 ? 2 : 1;
-
+export function createStar(
+  world: World<Entity>,
+  x: number,
+  y: number,
+  depth: number,
+  color: Color,
+  size: number,
+) {
   world.createEntity({
     transform: { position: { x, y }, rotation: 0 },
-    star: { color, size },
+    star: { color, size, depth },
     pulse: {
       time: rndRange(0, TAU),
       speed: rndRange(0.3, 0.9),
@@ -71,11 +68,33 @@ export function createParticle(
   });
 }
 
-/** Scatter stars everywhere; ring the planets around the spawn point so
+// Parallax star layers, far → near. Distant layers scroll slower (lower depth),
+// are dimmer, and denser; near layers move almost with the world and are bright.
+const STAR_LAYERS: Array<{
+  count: number;
+  depth: number;
+  colors: Color[];
+  bigChance: number;
+}> = [
+  { count: 70, depth: 0.3, colors: [Pico8.darkGray, Pico8.lavender], bigChance: 0 },
+  { count: 48, depth: 0.55, colors: [Pico8.lavender, Pico8.lightGray], bigChance: 0 },
+  { count: 32, depth: 0.85, colors: [Pico8.lightGray, Pico8.white], bigChance: 0.2 },
+];
+
+/** Scatter parallax star layers; ring the planets around the spawn point so
  * there's always a landmark within a short flight in any direction. */
 export function populateWorld(world: World<Entity>) {
-  for (let i = 0; i < STAR_COUNT; i++) {
-    createStar(world, rndRange(0, WORLD_WIDTH), rndRange(0, WORLD_HEIGHT));
+  for (const layer of STAR_LAYERS) {
+    for (let i = 0; i < layer.count; i++) {
+      createStar(
+        world,
+        rndRange(0, WORLD_WIDTH),
+        rndRange(0, WORLD_HEIGHT),
+        layer.depth,
+        rndFromList(layer.colors),
+        love.math.random() < layer.bigChance ? 2 : 1,
+      );
+    }
   }
 
   const centerX = WORLD_WIDTH / 2;
