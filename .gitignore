@@ -110,4 +110,5 @@ temp/
 
 # End of https://www.gitignore.io/api/node
 
-game/
+# Build output (anchored to repo root so it doesn't also ignore src/game/).
+/game/
