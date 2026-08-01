@@ -137,20 +137,21 @@ function emitThrust(ship: ShipEntity, headingX: number, headingY: number) {
   const perpX = -headingY;
   const perpY = headingX;
 
-  const count = love.math.random() < 0.5 ? 3 : 2;
+  const count = love.math.random() < 0.5 ? 4 : 3;
   for (let i = 0; i < count; i++) {
-    // Slower min speed lets some sparks linger at the nozzle, densifying the base.
-    const back = rndRange(10, 36);
-    const spread = rndRange(-7, 7);
-    // Half the sparks die ~25% sooner, thinning the tail while the base stays dense.
-    let life = rndRange(0.16, 0.3);
+    const back = rndRange(12, 30);
+    // Wide lateral spread → sparks fan out into a cone rather than a line.
+    const spread = rndRange(-18, 18);
+    // Short life so the plume stays close to the ship instead of streaking out.
+    let life = rndRange(0.08, 0.17);
     if (love.math.random() < 0.5) {
-      life *= 0.75;
+      life *= 0.6;
     }
     createParticle(
       world,
-      nozzleX + perpX * rndRange(-0.9, 0.9),
-      nozzleY + perpY * rndRange(-0.9, 0.9),
+      // Wide emission band across the nozzle for a fat base.
+      nozzleX + perpX * rndRange(-2.5, 2.5),
+      nozzleY + perpY * rndRange(-2.5, 2.5),
       -headingX * back + perpX * spread + ship.velocity.x * 0.25,
       -headingY * back + perpY * spread + ship.velocity.y * 0.25,
       life,
@@ -159,17 +160,17 @@ function emitThrust(ship: ShipEntity, headingX: number, headingY: number) {
     );
   }
 
-  // Occasional slower, longer-lived smoke pixel that falls off behind.
+  // Occasional slower smoke pixel that falls off behind.
   if (love.math.random() < 0.2) {
     const back = rndRange(6, 15);
-    const spread = rndRange(-5, 5);
+    const spread = rndRange(-10, 10);
     createParticle(
       world,
-      nozzleX,
-      nozzleY,
+      nozzleX + perpX * rndRange(-2, 2),
+      nozzleY + perpY * rndRange(-2, 2),
       -headingX * back + perpX * spread + ship.velocity.x * 0.12,
       -headingY * back + perpY * spread + ship.velocity.y * 0.12,
-      rndRange(0.35, 0.6),
+      rndRange(0.22, 0.4),
       'smoke',
       1,
     );
