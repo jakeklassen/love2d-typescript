@@ -25,6 +25,7 @@ import { World } from './lib/objecs/world';
 
 let world: World<Entity>;
 let canvas: Canvas;
+let upscaleCanvas: Canvas;
 let font: Font;
 
 let accumulator = 0;
@@ -49,6 +50,11 @@ love.load = () => {
 
   canvas = love.graphics.newCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
   canvas.setFilter('nearest', 'nearest');
+
+  // Full-resolution intermediate for the smooth sub-pixel blit. Linear filter
+  // so the fractional shift softens only the ~1px seams between pixel blocks.
+  upscaleCanvas = love.graphics.newCanvas(CANVAS_WIDTH * SCALE, CANVAS_HEIGHT * SCALE);
+  upscaleCanvas.setFilter('linear', 'linear');
 
   // The player ship sprite (8x8 quad from the shmup sheet).
   const shipSheet = love.graphics.newImage('res/images/shmup.png');
@@ -97,7 +103,7 @@ love.keypressed = (key) => {
 love.draw = () => {
   const alpha = interpolation ? accumulator / FIXED_DT : 1;
 
-  renderSystem(canvas, interpolation, subpixel, alpha);
+  renderSystem(canvas, upscaleCanvas, interpolation, subpixel, alpha);
 
   // HUD, drawn in game space and scaled up as a whole.
   const ship = getShip();

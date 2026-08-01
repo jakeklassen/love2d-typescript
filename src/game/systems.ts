@@ -262,6 +262,7 @@ function drawShip(ship: ShipEntity, x: number, y: number, rotationDeg: number) {
  */
 export function renderSystem(
   canvas: Canvas,
+  upscaleCanvas: Canvas,
   interpolate: boolean,
   subpixel: boolean,
   alpha: number,
@@ -313,7 +314,21 @@ export function renderSystem(
   love.graphics.pop();
   love.graphics.setCanvas();
 
-  // Blit the canvas, upscaled, offset by the sub-pixel camera remainder.
   love.graphics.setColor(1, 1, 1, 1);
-  love.graphics.draw(canvas, -fracX * SCALE, -fracY * SCALE, 0, SCALE, SCALE);
+
+  if (subpixel) {
+    // Two-pass: nearest-upscale to full resolution first (crisp 5x5 blocks),
+    // then apply the fractional sub-pixel shift with the upscale canvas's
+    // linear filter. Only the ~1px texel seams soften; block interiors stay
+    // sharp — much cleaner than linear-filtering the low-res source directly.
+    love.graphics.setCanvas(upscaleCanvas);
+    love.graphics.clear(SPACE_COLOR[0], SPACE_COLOR[1], SPACE_COLOR[2], 1);
+    love.graphics.draw(canvas, 0, 0, 0, SCALE, SCALE);
+    love.graphics.setCanvas();
+    love.graphics.draw(upscaleCanvas, -fracX * SCALE, -fracY * SCALE);
+  } else {
+    // Integer camera: straight nearest upscale — razor sharp, but steps a
+    // whole low-res pixel at a time.
+    love.graphics.draw(canvas, 0, 0, 0, SCALE, SCALE);
+  }
 }
