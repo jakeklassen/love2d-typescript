@@ -54,6 +54,23 @@ export function createStar(world: World<Entity>, x: number, y: number) {
   });
 }
 
+export function createParticle(
+  world: World<Entity>,
+  x: number,
+  y: number,
+  vx: number,
+  vy: number,
+  maxAge: number,
+  kind: string,
+  size: number,
+) {
+  world.createEntity({
+    transform: { position: { x, y }, rotation: 0 },
+    velocity: { x: vx, y: vy },
+    particle: { age: 0, maxAge, kind, size },
+  });
+}
+
 /** Scatter stars everywhere; ring the planets around the spawn point so
  * there's always a landmark within a short flight in any direction. */
 export function populateWorld(world: World<Entity>) {

@@ -18,4 +18,6 @@ export type Entity = {
   star?: { color: Color; size: number };
   /** A gently advancing phase used for soft, non-distracting pulsing. */
   pulse?: { time: number; speed: number; amplitude: number };
+  /** A short-lived exhaust pixel. `kind` selects its color ramp. */
+  particle?: { age: number; maxAge: number; kind: string; size: number };
 };

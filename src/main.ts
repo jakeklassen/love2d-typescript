@@ -16,6 +16,7 @@ import { SPACE_COLOR } from './game/palette';
 import {
   getShip,
   initQueries,
+  particleSystem,
   pulseSystem,
   renderSystem,
   setShipSprite,
@@ -79,6 +80,7 @@ love.update = (dt) => {
 
   while (accumulator >= FIXED_DT) {
     shipSystem(FIXED_DT);
+    particleSystem(FIXED_DT);
     accumulator -= FIXED_DT;
   }
 

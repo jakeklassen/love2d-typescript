@@ -1,10 +1,11 @@
 import { Canvas, Image, Quad } from 'love.graphics';
-import { lerp } from '../lib/math';
+import { lerp, rndRange } from '../lib/math';
 import {
   ReadonlyEntityCollection,
   SafeEntity,
   World,
 } from '../lib/objecs/world';
+import { createParticle } from './factories';
 import {
   GAME_HEIGHT,
   GAME_WIDTH,
@@ -27,18 +28,23 @@ type ShipEntity = SafeEntity<
 type PlanetEntity = SafeEntity<Entity, 'transform' | 'planet' | 'pulse'>;
 type StarEntity = SafeEntity<Entity, 'transform' | 'star' | 'pulse'>;
 type PulseEntity = SafeEntity<Entity, 'pulse'>;
+type ParticleEntity = SafeEntity<Entity, 'transform' | 'velocity' | 'particle'>;
 
 // Live archetype queries, created once from the world and reused every frame.
+let world!: World<Entity>;
 let ships!: ReadonlyEntityCollection<ShipEntity>;
 let planets!: ReadonlyEntityCollection<PlanetEntity>;
 let stars!: ReadonlyEntityCollection<StarEntity>;
 let pulses!: ReadonlyEntityCollection<PulseEntity>;
+let particles!: ReadonlyEntityCollection<ParticleEntity>;
 
-export function initQueries(world: World<Entity>) {
-  ships = world.archetype('transform', 'previous', 'velocity', 'ship').entities;
-  planets = world.archetype('transform', 'planet', 'pulse').entities;
-  stars = world.archetype('transform', 'star', 'pulse').entities;
-  pulses = world.archetype('pulse').entities;
+export function initQueries(w: World<Entity>) {
+  world = w;
+  ships = w.archetype('transform', 'previous', 'velocity', 'ship').entities;
+  planets = w.archetype('transform', 'planet', 'pulse').entities;
+  stars = w.archetype('transform', 'star', 'pulse').entities;
+  pulses = w.archetype('pulse').entities;
+  particles = w.archetype('transform', 'velocity', 'particle').entities;
 }
 
 // Ship sprite, supplied by the game on load.
@@ -93,6 +99,7 @@ export function shipSystem(dt: number) {
       ship.velocity.x += headingX * SHIP_THRUST * dt;
       ship.velocity.y += headingY * SHIP_THRUST * dt;
       ship.ship.thrusting = true;
+      emitThrust(ship, headingX, headingY);
     }
     if (brake) {
       ship.velocity.x -= headingX * SHIP_THRUST * SHIP_BRAKE * dt;
@@ -118,6 +125,73 @@ export function shipSystem(dt: number) {
   }
 }
 
+/** Spawn exhaust pixels from the ship's rear, streaming backward into world
+ * space so they trail behind as the ship flies on. Kept sparse and short-lived
+ * so it reads as a tight trail, not a cloud. */
+function emitThrust(ship: ShipEntity, headingX: number, headingY: number) {
+  const pos = ship.transform.position;
+  // Engine nozzle, just behind the hull.
+  const nozzleX = pos.x - headingX * (shipHalfH + 1);
+  const nozzleY = pos.y - headingY * (shipHalfH + 1);
+  // Perpendicular to the heading, for lateral spread.
+  const perpX = -headingY;
+  const perpY = headingX;
+
+  const count = love.math.random() < 0.5 ? 2 : 1;
+  for (let i = 0; i < count; i++) {
+    const back = rndRange(16, 36);
+    const spread = rndRange(-7, 7);
+    createParticle(
+      world,
+      nozzleX + perpX * rndRange(-0.6, 0.6),
+      nozzleY + perpY * rndRange(-0.6, 0.6),
+      -headingX * back + perpX * spread + ship.velocity.x * 0.25,
+      -headingY * back + perpY * spread + ship.velocity.y * 0.25,
+      rndRange(0.16, 0.3),
+      'flame',
+      1,
+    );
+  }
+
+  // Occasional slower, longer-lived smoke pixel that falls off behind.
+  if (love.math.random() < 0.2) {
+    const back = rndRange(6, 15);
+    const spread = rndRange(-5, 5);
+    createParticle(
+      world,
+      nozzleX,
+      nozzleY,
+      -headingX * back + perpX * spread + ship.velocity.x * 0.12,
+      -headingY * back + perpY * spread + ship.velocity.y * 0.12,
+      rndRange(0.35, 0.6),
+      'smoke',
+      1,
+    );
+  }
+}
+
+/** Advance particles, apply light drag, and reap the expired ones. */
+export function particleSystem(dt: number) {
+  const dead: ParticleEntity[] = [];
+  const drag = Math.max(0, 1 - 3 * dt);
+
+  for (const p of particles.raw) {
+    p.particle.age += dt;
+    if (p.particle.age >= p.particle.maxAge) {
+      dead.push(p);
+      continue;
+    }
+    p.transform.position.x += p.velocity.x * dt;
+    p.transform.position.y += p.velocity.y * dt;
+    p.velocity.x *= drag;
+    p.velocity.y *= drag;
+  }
+
+  for (const p of dead) {
+    world.deleteEntity(p);
+  }
+}
+
 /** Advance every pulse phase. Cosmetic, so it runs on the real frame delta. */
 export function pulseSystem(dt: number) {
   for (const entity of pulses.raw) {
@@ -128,6 +202,51 @@ export function pulseSystem(dt: number) {
 /** The current ship (for HUD readouts). */
 export function getShip(): ShipEntity {
   return ships.raw[0];
+}
+
+// Life-fraction (1 = fresh, 0 = dead) → palette color. Stepped, not blended,
+// to keep the fade "pixely".
+function flameColor(t: number) {
+  if (t > 0.75) return Pico8.yellow;
+  if (t > 0.5) return Pico8.orange;
+  if (t > 0.25) return Pico8.red;
+  return Pico8.darkPurple;
+}
+
+function smokeColor(t: number) {
+  if (t > 0.6) return Pico8.lightGray;
+  if (t > 0.3) return Pico8.darkGray;
+  return Pico8.darkBlue;
+}
+
+function drawParticles(
+  viewLeft: number,
+  viewTop: number,
+  viewRight: number,
+  viewBottom: number,
+) {
+  for (const p of particles.raw) {
+    const pos = p.transform.position;
+    if (
+      pos.x < viewLeft - 2 ||
+      pos.x > viewRight + 2 ||
+      pos.y < viewTop - 2 ||
+      pos.y > viewBottom + 2
+    ) {
+      continue;
+    }
+
+    const t = 1 - p.particle.age / p.particle.maxAge;
+    const c = p.particle.kind === 'smoke' ? smokeColor(t) : flameColor(t);
+    love.graphics.setColor(c[0], c[1], c[2], 1);
+    love.graphics.rectangle(
+      'fill',
+      Math.floor(pos.x),
+      Math.floor(pos.y),
+      p.particle.size,
+      p.particle.size,
+    );
+  }
 }
 
 function drawStars(
@@ -244,16 +363,8 @@ function drawShip(
   love.graphics.rotate(rotationDeg * DEG_TO_RAD);
   love.graphics.scale(SCALE, SCALE);
 
-  // Thruster flame (flickers) behind the hull when accelerating.
-  if (ship.ship.thrusting) {
-    const flame = shipHalfH + 2 + love.math.random() * 2;
-    love.graphics.setColor(Pico8.orange[0], Pico8.orange[1], Pico8.orange[2], 1);
-    love.graphics.polygon('fill', -2, shipHalfH, 2, shipHalfH, 0, flame);
-    love.graphics.setColor(Pico8.yellow[0], Pico8.yellow[1], Pico8.yellow[2], 1);
-    love.graphics.polygon('fill', -1, shipHalfH, 1, shipHalfH, 0, flame - 2);
-  }
-
-  // The ship sprite, drawn centered so it rotates about its middle.
+  // The ship sprite, drawn centered so it rotates about its middle. The
+  // exhaust is a world-space particle trail (see emitThrust), not drawn here.
   love.graphics.setColor(1, 1, 1, 1);
   love.graphics.draw(shipImage, shipQuad, 0, 0, 0, 1, 1, shipHalfW, shipHalfH);
 
@@ -317,6 +428,7 @@ export function renderSystem(
   love.graphics.translate(-flooredCamX, -flooredCamY);
   drawStars(viewLeft, viewTop, viewRight, viewBottom);
   drawPlanets(viewLeft, viewTop, viewRight, viewBottom);
+  drawParticles(viewLeft, viewTop, viewRight, viewBottom);
   love.graphics.pop();
 
   love.graphics.setCanvas();
