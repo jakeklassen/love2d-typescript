@@ -19,7 +19,7 @@ import {
   SHIP_THRUST,
 } from './constants';
 import { Entity } from './entity';
-import { Pico8 } from './palette';
+import { Pico8, SPACE_COLOR } from './palette';
 
 type ShipEntity = SafeEntity<
   Entity,
@@ -398,6 +398,7 @@ function drawShip(
  */
 export function renderSystem(
   canvas: Canvas,
+  sceneTarget: Canvas,
   interpolate: boolean,
   subpixel: boolean,
   alpha: number,
@@ -444,18 +445,23 @@ export function renderSystem(
   drawPlanets(viewLeft, viewTop, viewRight, viewBottom);
   drawParticles(viewLeft, viewTop, viewRight, viewBottom);
   love.graphics.pop();
-  love.graphics.setCanvas();
 
-  // --- parallax stars, straight to the (space-colored) screen, behind the world ---
+  // --- composite the full scene into the scene target (for post-processing) ---
+  love.graphics.setCanvas(sceneTarget);
+  love.graphics.clear(SPACE_COLOR[0], SPACE_COLOR[1], SPACE_COLOR[2], 1);
+
+  // Parallax stars, behind the world.
   drawStars(camX, camY, subpixel);
 
-  // --- blit the world over the stars (premultiplied so the canvas's
-  // transparent background composites correctly) ---
+  // Blit the world over the stars (premultiplied so the canvas's transparent
+  // background composites correctly).
   love.graphics.setColor(1, 1, 1, 1);
   love.graphics.setBlendMode('alpha', 'premultiplied');
   love.graphics.draw(canvas, blitX, blitY, 0, SCALE, SCALE);
   love.graphics.setBlendMode('alpha');
 
-  // --- ship on top, pinned to the exact view center ---
+  // Ship on top, pinned to the exact view center.
   drawShip(ship, (GAME_WIDTH / 2) * SCALE, (GAME_HEIGHT / 2) * SCALE, shipRot);
+
+  // Leaves `sceneTarget` as the active canvas for the HUD + post-process.
 }
