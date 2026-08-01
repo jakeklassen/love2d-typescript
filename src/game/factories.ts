@@ -45,8 +45,9 @@ export function createStar(
     star: { color, size, depth },
     pulse: {
       time: rndRange(0, TAU),
-      speed: rndRange(0.3, 0.9),
-      amplitude: rndRange(0.25, 0.6),
+      // Visible-but-subtle twinkle (~2-5s per cycle).
+      speed: rndRange(1.2, 3.0),
+      amplitude: rndRange(0.35, 0.65),
     },
   });
 }
@@ -76,9 +77,9 @@ const STAR_LAYERS: Array<{
   colors: Color[];
   bigChance: number;
 }> = [
-  { count: 70, depth: 0.3, colors: [Pico8.darkGray, Pico8.lavender], bigChance: 0 },
-  { count: 48, depth: 0.55, colors: [Pico8.lavender, Pico8.lightGray], bigChance: 0 },
-  { count: 32, depth: 0.85, colors: [Pico8.lightGray, Pico8.white], bigChance: 0.2 },
+  { count: 52, depth: 0.3, colors: [Pico8.darkGray, Pico8.lavender], bigChance: 0 },
+  { count: 36, depth: 0.55, colors: [Pico8.lavender, Pico8.lightGray], bigChance: 0 },
+  { count: 24, depth: 0.85, colors: [Pico8.lightGray, Pico8.white], bigChance: 0.2 },
 ];
 
 /** Scatter parallax star layers; ring the planets around the spawn point so

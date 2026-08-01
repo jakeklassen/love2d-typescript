@@ -7,8 +7,6 @@ import {
 } from '../lib/objecs/world';
 import { createParticle } from './factories';
 import {
-  CANVAS_HEIGHT,
-  CANVAS_WIDTH,
   GAME_HEIGHT,
   GAME_WIDTH,
   LIGHT_DIR_X,
@@ -21,7 +19,7 @@ import {
   SHIP_THRUST,
 } from './constants';
 import { Entity } from './entity';
-import { Pico8, SPACE_COLOR } from './palette';
+import { Pico8 } from './palette';
 
 type ShipEntity = SafeEntity<
   Entity,
@@ -261,22 +259,33 @@ function drawParticles(
   }
 }
 
-// Parallax starfield. Each star scrolls at `depth` × the camera and wraps over
-// a view-sized tile, so the field is effectively infinite and layers at
-// different depths separate to give a sense of distance. Drawn directly in
-// canvas space (not under the world translate): the star's canvas position
-// already folds in the camera, and adding the camera fraction pre-compensates
-// for the whole-screen-pixel blit so each layer stays crisp and smooth.
-const STAR_WRAP_W = CANVAS_WIDTH + 4;
-const STAR_WRAP_H = CANVAS_HEIGHT + 4;
+// Parallax starfield, drawn straight to the SCREEN (behind the world). Each
+// layer scrolls at `depth` × the camera and wraps over a view-sized tile, so
+// the field is effectively infinite and layers at different depths separate to
+// give a sense of distance. Screen-space rendering is what keeps it smooth: a
+// single sub-pixel canvas blit can only carry one scroll rate, so slow layers
+// would judder on the blitted canvas — here each layer floors to its own whole
+// screen pixel independently.
+const STAR_WRAP_W = (GAME_WIDTH + 2) * SCALE;
+const STAR_WRAP_H = (GAME_HEIGHT + 2) * SCALE;
 
-function drawStars(camX: number, camY: number, fracX: number, fracY: number) {
+function drawStars(camX: number, camY: number, subpixel: boolean) {
   for (const star of stars.raw) {
     const s = star.star;
-    const cx =
-      Math.floor(wrap(star.transform.position.x - camX * s.depth + fracX, STAR_WRAP_W)) - 2;
-    const cy =
-      Math.floor(wrap(star.transform.position.y - camY * s.depth + fracY, STAR_WRAP_H)) - 2;
+    const worldX = star.transform.position.x - camX * s.depth;
+    const worldY = star.transform.position.y - camY * s.depth;
+
+    // Smooth: floor to whole screen pixels. Sub-pixel off: snap to whole game
+    // pixels so stars step with the (stuttering) world.
+    const rawX = subpixel
+      ? Math.floor(worldX * SCALE)
+      : Math.floor(worldX) * SCALE;
+    const rawY = subpixel
+      ? Math.floor(worldY * SCALE)
+      : Math.floor(worldY) * SCALE;
+
+    const sx = wrap(rawX, STAR_WRAP_W) - SCALE;
+    const sy = wrap(rawY, STAR_WRAP_H) - SCALE;
 
     // Soft twinkle: brightness eases within [1 - amplitude, 1].
     const brightness =
@@ -288,7 +297,7 @@ function drawStars(camX: number, camY: number, fracX: number, fracY: number) {
       s.color[2] * brightness,
       1,
     );
-    love.graphics.rectangle('fill', cx, cy, s.size, s.size);
+    love.graphics.rectangle('fill', sx, sy, s.size * SCALE, s.size * SCALE);
   }
 }
 
@@ -427,31 +436,26 @@ export function renderSystem(
   const viewRight = flooredCamX + GAME_WIDTH + 1;
   const viewBottom = flooredCamY + GAME_HEIGHT + 1;
 
-  // --- world → low-res canvas, on the integer pixel grid ---
+  // --- world (planets + exhaust) → transparent low-res canvas ---
   love.graphics.setCanvas(canvas);
-  love.graphics.clear(SPACE_COLOR[0], SPACE_COLOR[1], SPACE_COLOR[2], 1);
-
-  // Parallax stars compute their own canvas position, so they draw outside the
-  // world translate.
-  drawStars(camX, camY, fracX, fracY);
-
+  love.graphics.clear(0, 0, 0, 0);
   love.graphics.push();
   love.graphics.translate(-flooredCamX, -flooredCamY);
   drawPlanets(viewLeft, viewTop, viewRight, viewBottom);
   drawParticles(viewLeft, viewTop, viewRight, viewBottom);
   love.graphics.pop();
-
   love.graphics.setCanvas();
 
-  // --- blit the world, upscaled, at the whole-screen-pixel offset ---
+  // --- parallax stars, straight to the (space-colored) screen, behind the world ---
+  drawStars(camX, camY, subpixel);
+
+  // --- blit the world over the stars (premultiplied so the canvas's
+  // transparent background composites correctly) ---
   love.graphics.setColor(1, 1, 1, 1);
+  love.graphics.setBlendMode('alpha', 'premultiplied');
   love.graphics.draw(canvas, blitX, blitY, 0, SCALE, SCALE);
+  love.graphics.setBlendMode('alpha');
 
   // --- ship on top, pinned to the exact view center ---
-  drawShip(
-    ship,
-    (GAME_WIDTH / 2) * SCALE,
-    (GAME_HEIGHT / 2) * SCALE,
-    shipRot,
-  );
+  drawShip(ship, (GAME_WIDTH / 2) * SCALE, (GAME_HEIGHT / 2) * SCALE, shipRot);
 }
