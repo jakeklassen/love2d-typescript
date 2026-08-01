@@ -39,7 +39,7 @@ let elapsed = 0;
 // Effects are toggleable at runtime so their effect can be felt.
 let interpolation = true;
 let subpixel = true;
-let crt = true;
+let crt = false;
 
 love.load = () => {
   love.window.setTitle('objecs • space drift');
@@ -131,11 +131,14 @@ function drawHud() {
   love.graphics.print(`spd ${speed}`, 3, 11);
 
   love.graphics.setColor(1, 1, 1, interpolation ? 1 : 0.45);
-  love.graphics.print(`[i] interp ${interpolation ? 'on' : 'off'}`, 3, GAME_HEIGHT - 27);
+  love.graphics.print(`[i] interp ${interpolation ? 'on' : 'off'}`, 3, GAME_HEIGHT - 35);
   love.graphics.setColor(1, 1, 1, subpixel ? 1 : 0.45);
-  love.graphics.print(`[p] subpix ${subpixel ? 'on' : 'off'}`, 3, GAME_HEIGHT - 19);
+  love.graphics.print(`[p] subpix ${subpixel ? 'on' : 'off'}`, 3, GAME_HEIGHT - 27);
   love.graphics.setColor(1, 1, 1, crt ? 1 : 0.45);
-  love.graphics.print(`[c] crt ${crt ? 'on' : 'off'}`, 3, GAME_HEIGHT - 11);
+  love.graphics.print(`[c] crt ${crt ? 'on' : 'off'}`, 3, GAME_HEIGHT - 19);
+  const boosting = love.keyboard.isDown('z');
+  love.graphics.setColor(1, 1, 1, boosting ? 1 : 0.45);
+  love.graphics.print('[z] boost', 3, GAME_HEIGHT - 11);
 
   love.graphics.pop();
 }

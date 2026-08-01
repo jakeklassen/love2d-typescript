@@ -21,7 +21,22 @@ export const SHIP_ROTATION_SPEED = 210; // degrees / second
 export const SHIP_THRUST = 280; // pixels / second^2
 export const SHIP_BRAKE = 0.6; // reverse-thrust fraction on the brake key
 export const SHIP_DRAG = 2.4; // velocity damping coefficient (per second)
-export const SHIP_MAX_SPEED = 115; // pixels / second
+// Absolute speed clamp. Normal cruise settles ~SHIP_THRUST/SHIP_DRAG via drag;
+// this cap only bites while boosting.
+export const SHIP_MAX_SPEED = 520;
+
+// Boost (hold Z): huge forward thrust so the ship rockets to the cap; releasing
+// lets drag bleed the speed back down naturally.
+export const SHIP_BOOST_THRUST = 1500; // pixels / second^2
+
+// Star streaking during high-speed flight.
+export const STREAK_THRESHOLD = 140; // speed above which stars begin to streak
+export const STREAK_K = 0.07; // streak length per (speed - threshold), game px
+export const STREAK_MAX = 46; // max streak length, game px (before depth scaling)
+
+// Screen shake ramps in above this speed, for the "rattling at max velocity" feel.
+export const SHAKE_THRESHOLD = 200;
+export const SHAKE_MAX = 1.2; // max camera shake amplitude, game px
 
 export const PLANET_COUNT = 7;
 

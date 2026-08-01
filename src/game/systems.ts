@@ -12,11 +12,17 @@ import {
   LIGHT_DIR_X,
   LIGHT_DIR_Y,
   SCALE,
+  SHAKE_MAX,
+  SHAKE_THRESHOLD,
+  SHIP_BOOST_THRUST,
   SHIP_BRAKE,
   SHIP_DRAG,
   SHIP_MAX_SPEED,
   SHIP_ROTATION_SPEED,
   SHIP_THRUST,
+  STREAK_K,
+  STREAK_MAX,
+  STREAK_THRESHOLD,
 } from './constants';
 import { Entity } from './entity';
 import { Pico8, SPACE_COLOR } from './palette';
@@ -78,6 +84,7 @@ export function shipSystem(dt: number) {
     love.keyboard.isDown('right') || love.keyboard.isDown('d');
   const thrust = love.keyboard.isDown('up') || love.keyboard.isDown('w');
   const brake = love.keyboard.isDown('down') || love.keyboard.isDown('s');
+  const boost = love.keyboard.isDown('z');
 
   for (const ship of ships.raw) {
     // Snapshot the current transform so the renderer can interpolate.
@@ -98,11 +105,12 @@ export function shipSystem(dt: number) {
     const headingY = -Math.cos(rad);
 
     ship.ship.thrusting = false;
-    if (thrust) {
-      ship.velocity.x += headingX * SHIP_THRUST * dt;
-      ship.velocity.y += headingY * SHIP_THRUST * dt;
+    if (thrust || boost) {
+      const power = boost ? SHIP_BOOST_THRUST : SHIP_THRUST;
+      ship.velocity.x += headingX * power * dt;
+      ship.velocity.y += headingY * power * dt;
       ship.ship.thrusting = true;
-      emitThrust(ship, headingX, headingY);
+      emitThrust(ship, headingX, headingY, boost);
     }
     if (brake) {
       ship.velocity.x -= headingX * SHIP_THRUST * SHIP_BRAKE * dt;
@@ -131,7 +139,12 @@ export function shipSystem(dt: number) {
 /** Spawn exhaust pixels from the ship's rear, streaming backward into world
  * space so they trail behind as the ship flies on. Kept sparse and short-lived
  * so it reads as a tight trail, not a cloud. */
-function emitThrust(ship: ShipEntity, headingX: number, headingY: number) {
+function emitThrust(
+  ship: ShipEntity,
+  headingX: number,
+  headingY: number,
+  boost: boolean,
+) {
   const pos = ship.transform.position;
   // Engine nozzle, just behind the hull.
   const nozzleX = pos.x - headingX * (shipHalfH + 1);
@@ -140,9 +153,16 @@ function emitThrust(ship: ShipEntity, headingX: number, headingY: number) {
   const perpX = -headingY;
   const perpY = headingX;
 
-  const count = love.math.random() < 0.5 ? 4 : 3;
+  // Boost throws a denser, faster plume that stretches into a long trail.
+  const count = boost
+    ? love.math.random() < 0.5
+      ? 7
+      : 6
+    : love.math.random() < 0.5
+      ? 4
+      : 3;
   for (let i = 0; i < count; i++) {
-    const back = rndRange(12, 30);
+    const back = boost ? rndRange(26, 64) : rndRange(12, 30);
     // Emit across a wide band at the nozzle (fat base), then pull each spark
     // back toward the center axis — stronger the further off-center it starts —
     // so the plume converges to a point as it trails away: a cone.
@@ -272,7 +292,28 @@ function drawParticles(
 const STAR_WRAP_W = (GAME_WIDTH + 2) * SCALE;
 const STAR_WRAP_H = (GAME_HEIGHT + 2) * SCALE;
 
-function drawStars(camX: number, camY: number, subpixel: boolean) {
+function drawStars(
+  camX: number,
+  camY: number,
+  subpixel: boolean,
+  velX: number,
+  velY: number,
+) {
+  // At speed, stars stretch into streaks along the travel axis — length scales
+  // with over-speed and with each star's parallax depth (near stars streak
+  // longest). Below the threshold they stay as dots.
+  const speed = Math.sqrt(velX * velX + velY * velY);
+  const streaking = speed > STREAK_THRESHOLD;
+  const dirX = streaking ? velX / speed : 0;
+  const dirY = streaking ? velY / speed : 0;
+  const baseLen = streaking
+    ? Math.min((speed - STREAK_THRESHOLD) * STREAK_K, STREAK_MAX)
+    : 0;
+
+  if (streaking) {
+    love.graphics.setLineStyle('rough');
+  }
+
   for (const star of stars.raw) {
     const s = star.star;
     const worldX = star.transform.position.x - camX * s.depth;
@@ -300,7 +341,22 @@ function drawStars(camX: number, camY: number, subpixel: boolean) {
       s.color[2] * brightness,
       1,
     );
-    love.graphics.rectangle('fill', sx, sy, s.size * SCALE, s.size * SCALE);
+
+    const size = s.size * SCALE;
+    if (streaking) {
+      // Trail behind the star's screen motion (i.e. along +velocity).
+      const len = baseLen * s.depth * SCALE;
+      const cx = sx + size * 0.5;
+      const cy = sy + size * 0.5;
+      love.graphics.setLineWidth(size);
+      love.graphics.line(cx, cy, cx + dirX * len, cy + dirY * len);
+    } else {
+      love.graphics.rectangle('fill', sx, sy, size, size);
+    }
+  }
+
+  if (streaking) {
+    love.graphics.setLineWidth(1);
   }
 }
 
@@ -418,8 +474,19 @@ export function renderSystem(
   }
 
   // Camera top-left, in world space.
-  const camX = shipX - GAME_WIDTH / 2;
-  const camY = shipY - GAME_HEIGHT / 2;
+  let camX = shipX - GAME_WIDTH / 2;
+  let camY = shipY - GAME_HEIGHT / 2;
+
+  // Screen shake ramps in with over-speed (boost) — the whole world jitters
+  // around the pinned ship for a "rattling at max velocity" feel.
+  const speed = Math.sqrt(
+    ship.velocity.x * ship.velocity.x + ship.velocity.y * ship.velocity.y,
+  );
+  if (speed > SHAKE_THRESHOLD) {
+    const amp = Math.min((speed - SHAKE_THRESHOLD) / 300, 1) * SHAKE_MAX;
+    camX += (love.math.random() * 2 - 1) * amp;
+    camY += (love.math.random() * 2 - 1) * amp;
+  }
 
   const flooredCamX = Math.floor(camX);
   const flooredCamY = Math.floor(camY);
@@ -453,8 +520,8 @@ export function renderSystem(
   love.graphics.setCanvas(sceneTarget);
   love.graphics.clear(SPACE_COLOR[0], SPACE_COLOR[1], SPACE_COLOR[2], 1);
 
-  // Parallax stars, behind the world.
-  drawStars(camX, camY, subpixel);
+  // Parallax stars, behind the world (streaking at speed).
+  drawStars(camX, camY, subpixel, ship.velocity.x, ship.velocity.y);
 
   // Blit the world over the stars (premultiplied so the canvas's transparent
   // background composites correctly).
