@@ -1,4 +1,4 @@
-import { Canvas, Image, Quad } from 'love.graphics';
+import { Canvas, Image, Quad, Shader } from 'love.graphics';
 import { lerp, rndRange, wrap } from '../lib/math';
 import {
   ReadonlyEntityCollection,
@@ -465,9 +465,100 @@ export function renderSystem(
 
   // Ship on top, pinned to the exact view center.
   lastShipRot = shipRot;
-  drawShip(ship, (GAME_WIDTH / 2) * SCALE, (GAME_HEIGHT / 2) * SCALE, shipRot);
+  const shipScreenX = (GAME_WIDTH / 2) * SCALE;
+  const shipScreenY = (GAME_HEIGHT / 2) * SCALE;
+  drawShip(ship, shipScreenX, shipScreenY, shipRot);
+  drawPlanetLightOnShip(shipX, shipY, shipScreenX, shipScreenY, shipRot);
 
   // Leaves `sceneTarget` as the active canvas for the HUD + post-process.
+}
+
+// Flat-colors the ship silhouette (uses the sprite alpha as a mask), so a
+// planet's light washes the whole hull, not just its matching-color pixels.
+let shipLightShader: Shader | undefined;
+function getShipLightShader(): Shader {
+  if (shipLightShader === undefined) {
+    shipLightShader = love.graphics.newShader(`
+      extern vec3 lightColor;
+      vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+        return vec4(lightColor, Texel(tex, tc).a * color.a);
+      }
+    `);
+  }
+  return shipLightShader;
+}
+
+/** Wash the ship with the summed light of nearby planets, offset toward the
+ * dominant one for a directional feel. Drawn additively into the scene (so it
+ * also feeds the bloom). */
+function drawPlanetLightOnShip(
+  shipX: number,
+  shipY: number,
+  screenX: number,
+  screenY: number,
+  rotationDeg: number,
+) {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let dirX = 0;
+  let dirY = 0;
+  let total = 0;
+
+  for (const planet of planets.raw) {
+    const pl = planet.planet;
+    const dx = planet.transform.position.x - shipX;
+    const dy = planet.transform.position.y - shipY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const range = pl.radius * 5 + 30;
+    const surface = dist - pl.radius;
+    if (surface >= range) continue;
+
+    let i = 1 - surface / range;
+    if (i <= 0) continue;
+    i = i * i; // ease the falloff
+
+    // Use the planet's characteristic hue (base), not its near-white highlight,
+    // so the spilled light is actually colored.
+    r += pl.base[0] * i;
+    g += pl.base[1] * i;
+    b += pl.base[2] * i;
+
+    const inv = i / Math.max(dist, 0.001);
+    dirX += dx * inv;
+    dirY += dy * inv;
+    total += i;
+  }
+
+  if (total <= 0) return;
+
+  const strength = 0.55;
+  r = Math.min(r, 1) * strength;
+  g = Math.min(g, 1) * strength;
+  b = Math.min(b, 1) * strength;
+
+  // Directional offset (screen space) toward the dominant planet.
+  const dlen = Math.sqrt(dirX * dirX + dirY * dirY);
+  let ox = 0;
+  let oy = 0;
+  if (dlen > 0) {
+    const push = SCALE * 0.5 * Math.min(total, 1);
+    ox = (dirX / dlen) * push;
+    oy = (dirY / dlen) * push;
+  }
+
+  love.graphics.setShader(getShipLightShader());
+  getShipLightShader().send('lightColor', [r, g, b]);
+  love.graphics.setBlendMode('add');
+  love.graphics.push();
+  love.graphics.translate(screenX + ox, screenY + oy);
+  love.graphics.rotate(rotationDeg * DEG_TO_RAD);
+  love.graphics.scale(SCALE, SCALE);
+  love.graphics.setColor(1, 1, 1, 1);
+  love.graphics.draw(shipImage, shipQuad, 0, 0, 0, 1, 1, shipHalfW, shipHalfH);
+  love.graphics.pop();
+  love.graphics.setBlendMode('alpha');
+  love.graphics.setShader();
 }
 
 /** Draw the ship sprite as a bloom contributor at (screenX, screenY) scaled by
