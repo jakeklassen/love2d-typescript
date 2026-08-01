@@ -52,6 +52,9 @@ let shipImage!: Image;
 let shipQuad!: Quad;
 let shipHalfW = 4;
 let shipHalfH = 4;
+// The rotation used the last time the ship was rendered, so the bloom glow can
+// match its orientation.
+let lastShipRot = 0;
 
 export function setShipSprite(
   image: Image,
@@ -461,7 +464,26 @@ export function renderSystem(
   love.graphics.setBlendMode('alpha');
 
   // Ship on top, pinned to the exact view center.
+  lastShipRot = shipRot;
   drawShip(ship, (GAME_WIDTH / 2) * SCALE, (GAME_HEIGHT / 2) * SCALE, shipRot);
 
   // Leaves `sceneTarget` as the active canvas for the HUD + post-process.
+}
+
+/** Draw the ship sprite as a bloom contributor at (screenX, screenY) scaled by
+ * `spriteScale`, using its last render orientation. `alpha` sets glow strength.
+ * Meant to be drawn additively into the bloom canvas. */
+export function drawShipGlow(
+  screenX: number,
+  screenY: number,
+  spriteScale: number,
+  alpha: number,
+) {
+  love.graphics.push();
+  love.graphics.translate(screenX, screenY);
+  love.graphics.rotate(lastShipRot * DEG_TO_RAD);
+  love.graphics.scale(spriteScale, spriteScale);
+  love.graphics.setColor(1, 1, 1, alpha);
+  love.graphics.draw(shipImage, shipQuad, 0, 0, 0, 1, 1, shipHalfW, shipHalfH);
+  love.graphics.pop();
 }

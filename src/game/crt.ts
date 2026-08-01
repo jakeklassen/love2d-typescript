@@ -103,19 +103,36 @@ export function initCrt(width: number, height: number) {
 }
 
 /** Post-process `scene` to the screen: bloom (bright → blur H → blur V), then
- * the CRT composite. */
-export function applyCrt(scene: Canvas, time: number) {
+ * the CRT composite. `drawGlow`, if given, injects extra bloom contributors
+ * (e.g. the ship) into the bloom canvas regardless of the brightness threshold;
+ * it receives the scene→bloom scale factor. */
+export function applyCrt(
+  scene: Canvas,
+  time: number,
+  drawGlow?: (bloomScale: number) => void,
+) {
   const sceneW = scene.getWidth();
   const sceneH = scene.getHeight();
+  const bloomScale = bloomW / sceneW;
 
   // 1. Bright-pass, downsampled to quarter resolution.
   love.graphics.setCanvas(bloomA);
   love.graphics.clear(0, 0, 0, 1);
   love.graphics.setShader(brightShader);
   love.graphics.setColor(1, 1, 1, 1);
-  love.graphics.draw(scene, 0, 0, 0, bloomW / sceneW, bloomH / sceneH);
+  love.graphics.draw(scene, 0, 0, 0, bloomScale, bloomH / sceneH);
+
+  // 1b. Extra glow sources (e.g. the ship) added straight into the bloom,
+  // additively and without the threshold, so they always glow.
+  if (drawGlow !== undefined) {
+    love.graphics.setShader();
+    love.graphics.setBlendMode('add');
+    drawGlow(bloomScale);
+    love.graphics.setBlendMode('alpha');
+  }
 
   // 2. Blur horizontally, then vertically (ping-pong).
+  love.graphics.setColor(1, 1, 1, 1);
   love.graphics.setShader(blurShader);
   love.graphics.setCanvas(bloomB);
   love.graphics.clear(0, 0, 0, 1);

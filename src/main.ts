@@ -15,6 +15,7 @@ import { Entity } from './game/entity';
 import { createShip, populateWorld } from './game/factories';
 import { SPACE_COLOR } from './game/palette';
 import {
+  drawShipGlow,
   getShip,
   initQueries,
   particleSystem,
@@ -150,7 +151,16 @@ love.draw = () => {
 
   // Post-process (or pass the scene straight through when CRT is off).
   if (crt) {
-    applyCrt(sceneCanvas, elapsed);
+    // Give the ship a subtle bloom halo regardless of its (dim red) color, so
+    // it visibly sits inside the CRT look. Ship is pinned to the view center.
+    applyCrt(sceneCanvas, elapsed, (bloomScale) => {
+      drawShipGlow(
+        (WINDOW_WIDTH / 2) * bloomScale,
+        (WINDOW_HEIGHT / 2) * bloomScale,
+        SCALE * bloomScale,
+        0.75,
+      );
+    });
   } else {
     love.graphics.setColor(1, 1, 1, 1);
     love.graphics.draw(sceneCanvas, 0, 0);
