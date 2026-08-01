@@ -228,10 +228,21 @@ function drawPlanets(
   }
 }
 
-function drawShip(ship: ShipEntity, x: number, y: number, rotationDeg: number) {
+/**
+ * Draw the ship on top of the blitted world, at the exact view center and
+ * upscaled, so it stays perfectly pinned and crisp regardless of the world's
+ * sub-pixel scroll. `screenX/screenY` are in physical screen pixels.
+ */
+function drawShip(
+  ship: ShipEntity,
+  screenX: number,
+  screenY: number,
+  rotationDeg: number,
+) {
   love.graphics.push();
-  love.graphics.translate(x, y);
+  love.graphics.translate(screenX, screenY);
   love.graphics.rotate(rotationDeg * DEG_TO_RAD);
+  love.graphics.scale(SCALE, SCALE);
 
   // Thruster flame (flickers) behind the hull when accelerating.
   if (ship.ship.thrusting) {
@@ -262,7 +273,6 @@ function drawShip(ship: ShipEntity, x: number, y: number, rotationDeg: number) {
  */
 export function renderSystem(
   canvas: Canvas,
-  upscaleCanvas: Canvas,
   interpolate: boolean,
   subpixel: boolean,
   alpha: number,
@@ -278,57 +288,48 @@ export function renderSystem(
     shipRot = lerp(ship.previous.rotation, shipRot, alpha);
   }
 
-  // Camera top-left, in world space. When sub-pixel is off, snap it to the
-  // integer grid so scrolling steps a whole low-res pixel at a time (stutter).
-  let camX = shipX - GAME_WIDTH / 2;
-  let camY = shipY - GAME_HEIGHT / 2;
-  if (!subpixel) {
-    camX = Math.floor(camX);
-    camY = Math.floor(camY);
-  }
+  // Camera top-left, in world space.
+  const camX = shipX - GAME_WIDTH / 2;
+  const camY = shipY - GAME_HEIGHT / 2;
 
   const flooredCamX = Math.floor(camX);
   const flooredCamY = Math.floor(camY);
-  const fracX = camX - flooredCamX;
-  const fracY = camY - flooredCamY;
+
+  // Sub-pixel scroll, quantized to whole SCREEN pixels. The world is drawn on
+  // the integer low-res grid (crisp); the fractional camera remainder becomes
+  // an integer screen-pixel blit offset, giving 1/SCALE-game-pixel motion
+  // granularity without ever landing on a fractional screen pixel (no blur).
+  // Sub-pixel off snaps the offset to 0, so scrolling steps a whole low-res
+  // pixel (SCALE screen px) at a time.
+  const blitX = subpixel ? -Math.round((camX - flooredCamX) * SCALE) : 0;
+  const blitY = subpixel ? -Math.round((camY - flooredCamY) * SCALE) : 0;
 
   const viewLeft = flooredCamX;
   const viewTop = flooredCamY;
   const viewRight = flooredCamX + GAME_WIDTH + 1;
   const viewBottom = flooredCamY + GAME_HEIGHT + 1;
 
+  // --- world → low-res canvas, on the integer pixel grid ---
   love.graphics.setCanvas(canvas);
   love.graphics.clear(SPACE_COLOR[0], SPACE_COLOR[1], SPACE_COLOR[2], 1);
 
   love.graphics.push();
   love.graphics.translate(-flooredCamX, -flooredCamY);
-
   drawStars(viewLeft, viewTop, viewRight, viewBottom);
   drawPlanets(viewLeft, viewTop, viewRight, viewBottom);
-
-  // The ship draws at exact coords (or floored when sub-pixel is off).
-  const shipDrawX = subpixel ? shipX : Math.floor(shipX);
-  const shipDrawY = subpixel ? shipY : Math.floor(shipY);
-  drawShip(ship, shipDrawX, shipDrawY, shipRot);
-
   love.graphics.pop();
+
   love.graphics.setCanvas();
 
+  // --- blit the world, upscaled, at the whole-screen-pixel offset ---
   love.graphics.setColor(1, 1, 1, 1);
+  love.graphics.draw(canvas, blitX, blitY, 0, SCALE, SCALE);
 
-  if (subpixel) {
-    // Two-pass: nearest-upscale to full resolution first (crisp 5x5 blocks),
-    // then apply the fractional sub-pixel shift with the upscale canvas's
-    // linear filter. Only the ~1px texel seams soften; block interiors stay
-    // sharp — much cleaner than linear-filtering the low-res source directly.
-    love.graphics.setCanvas(upscaleCanvas);
-    love.graphics.clear(SPACE_COLOR[0], SPACE_COLOR[1], SPACE_COLOR[2], 1);
-    love.graphics.draw(canvas, 0, 0, 0, SCALE, SCALE);
-    love.graphics.setCanvas();
-    love.graphics.draw(upscaleCanvas, -fracX * SCALE, -fracY * SCALE);
-  } else {
-    // Integer camera: straight nearest upscale — razor sharp, but steps a
-    // whole low-res pixel at a time.
-    love.graphics.draw(canvas, 0, 0, 0, SCALE, SCALE);
-  }
+  // --- ship on top, pinned to the exact view center ---
+  drawShip(
+    ship,
+    (GAME_WIDTH / 2) * SCALE,
+    (GAME_HEIGHT / 2) * SCALE,
+    shipRot,
+  );
 }
