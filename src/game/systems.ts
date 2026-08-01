@@ -140,8 +140,11 @@ function emitThrust(ship: ShipEntity, headingX: number, headingY: number) {
   const count = love.math.random() < 0.5 ? 4 : 3;
   for (let i = 0; i < count; i++) {
     const back = rndRange(12, 30);
-    // Wide lateral spread → sparks fan out into a cone rather than a line.
-    const spread = rndRange(-18, 18);
+    // Emit across a wide band at the nozzle (fat base), then pull each spark
+    // back toward the center axis — stronger the further off-center it starts —
+    // so the plume converges to a point as it trails away: a cone.
+    const band = rndRange(-2.5, 2.5);
+    const converge = -band * rndRange(5, 9) + rndRange(-3, 3);
     // Short life so the plume stays close to the ship instead of streaking out.
     let life = rndRange(0.08, 0.17);
     if (love.math.random() < 0.5) {
@@ -149,11 +152,10 @@ function emitThrust(ship: ShipEntity, headingX: number, headingY: number) {
     }
     createParticle(
       world,
-      // Wide emission band across the nozzle for a fat base.
-      nozzleX + perpX * rndRange(-2.5, 2.5),
-      nozzleY + perpY * rndRange(-2.5, 2.5),
-      -headingX * back + perpX * spread + ship.velocity.x * 0.25,
-      -headingY * back + perpY * spread + ship.velocity.y * 0.25,
+      nozzleX + perpX * band,
+      nozzleY + perpY * band,
+      -headingX * back + perpX * converge + ship.velocity.x * 0.25,
+      -headingY * back + perpY * converge + ship.velocity.y * 0.25,
       life,
       'flame',
       1,
@@ -163,13 +165,14 @@ function emitThrust(ship: ShipEntity, headingX: number, headingY: number) {
   // Occasional slower smoke pixel that falls off behind.
   if (love.math.random() < 0.2) {
     const back = rndRange(6, 15);
-    const spread = rndRange(-10, 10);
+    const band = rndRange(-2, 2);
+    const converge = -band * rndRange(3, 6) + rndRange(-2, 2);
     createParticle(
       world,
-      nozzleX + perpX * rndRange(-2, 2),
-      nozzleY + perpY * rndRange(-2, 2),
-      -headingX * back + perpX * spread + ship.velocity.x * 0.12,
-      -headingY * back + perpY * spread + ship.velocity.y * 0.12,
+      nozzleX + perpX * band,
+      nozzleY + perpY * band,
+      -headingX * back + perpX * converge + ship.velocity.x * 0.12,
+      -headingY * back + perpY * converge + ship.velocity.y * 0.12,
       rndRange(0.22, 0.4),
       'smoke',
       1,
