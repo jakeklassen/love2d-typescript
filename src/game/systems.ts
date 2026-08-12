@@ -1,11 +1,11 @@
 import { Canvas, Image, Quad, Shader } from 'love.graphics';
-import { lerp, rndRange, wrap } from '../lib/math';
+import { lerp, rndRange, TAU, wrap } from '../lib/math';
 import {
   ReadonlyEntityCollection,
   SafeEntity,
   World,
 } from '../lib/objecs/world';
-import { createBullet, createParticle } from './factories';
+import { createBullet, createEnemy, createParticle } from './factories';
 import { actions } from './input';
 import {
   BOOST_DASH_COST,
@@ -13,7 +13,19 @@ import {
   BOOST_DRAIN,
   BOOST_FUEL_MAX,
   BOOST_REFILL,
+  BULLET_RADIUS,
   BULLET_SPEED,
+  ENEMY_HEALTH,
+  ENEMY_HIT_FLASH,
+  ENEMY_PATROL_RADIUS,
+  ENEMY_RADIUS,
+  ENEMY_REPATH_TIME,
+  ENEMY_RESPAWN_DELAY,
+  ENEMY_SEPARATION,
+  ENEMY_SEPARATION_FORCE,
+  ENEMY_SIGHT_LOSE_MARGIN,
+  ENEMY_THRUST,
+  ENEMY_WAYPOINT_REACHED,
   GAME_HEIGHT,
   GAME_WIDTH,
   MUZZLE_OFFSET,
@@ -34,6 +46,8 @@ import {
   STREAK_K,
   STREAK_MAX,
   STREAK_THRESHOLD,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
 } from './constants';
 import { Entity } from './entity';
 import { Pico8, SPACE_COLOR } from './palette';
@@ -50,6 +64,10 @@ type BulletEntity = SafeEntity<
   Entity,
   'transform' | 'previous' | 'velocity' | 'bullet'
 >;
+type EnemyEntity = SafeEntity<
+  Entity,
+  'transform' | 'previous' | 'velocity' | 'enemy'
+>;
 
 // Live archetype queries, created once from the world and reused every frame.
 let world!: World<Entity>;
@@ -59,6 +77,7 @@ let stars!: ReadonlyEntityCollection<StarEntity>;
 let pulses!: ReadonlyEntityCollection<PulseEntity>;
 let particles!: ReadonlyEntityCollection<ParticleEntity>;
 let bullets!: ReadonlyEntityCollection<BulletEntity>;
+let enemies!: ReadonlyEntityCollection<EnemyEntity>;
 
 export function initQueries(w: World<Entity>) {
   world = w;
@@ -68,6 +87,7 @@ export function initQueries(w: World<Entity>) {
   pulses = w.archetype('pulse').entities;
   particles = w.archetype('transform', 'velocity', 'particle').entities;
   bullets = w.archetype('transform', 'previous', 'velocity', 'bullet').entities;
+  enemies = w.archetype('transform', 'previous', 'velocity', 'enemy').entities;
 }
 
 // Ship sprite, supplied by the game on load.
@@ -91,11 +111,16 @@ export function setShipSprite(
   shipHalfH = height / 2;
 }
 
-// Bullet quad (from the same shmup sheet as the ship). 8x8.
+// Bullet + enemy quads (from the same shmup sheet as the ship). Both 8x8.
 let bulletQuad!: Quad;
+let enemyQuad!: Quad;
 
 export function setBulletSprite(quad: Quad) {
   bulletQuad = quad;
+}
+
+export function setEnemySprite(quad: Quad) {
+  enemyQuad = quad;
 }
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -339,7 +364,7 @@ export function shootSystem(dt: number) {
   }
 }
 
-/** Advance bullets, age them, and reap the expired ones. */
+/** Advance bullets, test against live enemies, and reap the spent ones. */
 export function bulletSystem(dt: number) {
   const dead: BulletEntity[] = [];
   for (const bullet of bullets.raw) {
@@ -354,9 +379,220 @@ export function bulletSystem(dt: number) {
     }
     bullet.transform.position.x += bullet.velocity.x * dt;
     bullet.transform.position.y += bullet.velocity.y * dt;
+
+    for (const enemy of enemies.raw) {
+      if (enemy.enemy.respawnTimer > 0) continue;
+      const dx = enemy.transform.position.x - bullet.transform.position.x;
+      const dy = enemy.transform.position.y - bullet.transform.position.y;
+      const hitR = ENEMY_RADIUS + BULLET_RADIUS;
+      if (dx * dx + dy * dy <= hitR * hitR) {
+        hitEnemy(enemy, bullet.transform.position.x, bullet.transform.position.y);
+        dead.push(bullet);
+        break;
+      }
+    }
   }
   for (const bullet of dead) {
     world.deleteEntity(bullet);
+  }
+}
+
+/** Apply a hit: flash, spark, and on death a burst plus a respawn countdown. */
+function hitEnemy(enemy: EnemyEntity, atX: number, atY: number) {
+  enemy.enemy.health -= 1;
+  enemy.enemy.hitFlash = ENEMY_HIT_FLASH;
+
+  for (let i = 0; i < 6; i++) {
+    const angle = rndRange(0, TAU);
+    const speed = rndRange(20, 70);
+    createParticle(
+      world,
+      atX,
+      atY,
+      Math.cos(angle) * speed,
+      Math.sin(angle) * speed,
+      rndRange(0.1, 0.25),
+      'flame',
+      1,
+    );
+  }
+
+  if (enemy.enemy.health <= 0) {
+    const ex = enemy.transform.position.x;
+    const ey = enemy.transform.position.y;
+    for (let i = 0; i < 24; i++) {
+      const angle = rndRange(0, TAU);
+      const speed = rndRange(30, 120);
+      createParticle(
+        world,
+        ex,
+        ey,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        rndRange(0.2, 0.5),
+        love.math.random() < 0.5 ? 'flame' : 'smoke',
+        1,
+      );
+    }
+    enemy.enemy.respawnTimer = ENEMY_RESPAWN_DELAY;
+  }
+}
+
+const clampTo = (v: number, max: number) => Math.max(0, Math.min(max, v));
+
+/**
+ * Enemy movement AI. Each live enemy flies with the player's handling (turn the
+ * nose toward a goal, thrust along it, grip drags the slide) minus the boost,
+ * a hair slower. It patrols random waypoints until the player is on screen, then
+ * pursues — reaching the player and dogfighting — and separates from other foes.
+ */
+export function enemyAiSystem(dt: number) {
+  const ship = ships.raw[0];
+  for (const enemy of enemies.raw) {
+    const e = enemy.enemy;
+    if (e.respawnTimer > 0) continue;
+
+    enemy.previous.position.x = enemy.transform.position.x;
+    enemy.previous.position.y = enemy.transform.position.y;
+    enemy.previous.rotation = enemy.transform.rotation;
+
+    // Sight is tied to the viewport: spot the player once on screen, disengage
+    // once well past the edge — so nothing rushes in from off-screen.
+    if (ship !== undefined) {
+      const px = ship.transform.position.x - enemy.transform.position.x;
+      const py = ship.transform.position.y - enemy.transform.position.y;
+      const halfW = GAME_WIDTH / 2;
+      const halfH = GAME_HEIGHT / 2;
+      const onScreen = Math.abs(px) <= halfW && Math.abs(py) <= halfH;
+      const offScreen =
+        Math.abs(px) > halfW + ENEMY_SIGHT_LOSE_MARGIN ||
+        Math.abs(py) > halfH + ENEMY_SIGHT_LOSE_MARGIN;
+      if (e.state === 'patrol' && onScreen) e.state = 'engage';
+      else if (e.state === 'engage' && offScreen) e.state = 'patrol';
+    } else if (e.state === 'engage') {
+      e.state = 'patrol';
+    }
+
+    // Pick a goal: pursue the player, or steer to the next patrol waypoint.
+    let goalX: number;
+    let goalY: number;
+    if (e.state === 'engage' && ship !== undefined) {
+      goalX = ship.transform.position.x;
+      goalY = ship.transform.position.y;
+    } else {
+      e.repathTimer -= dt;
+      const wdx = e.waypoint.x - enemy.transform.position.x;
+      const wdy = e.waypoint.y - enemy.transform.position.y;
+      if (
+        wdx * wdx + wdy * wdy <=
+          ENEMY_WAYPOINT_REACHED * ENEMY_WAYPOINT_REACHED ||
+        e.repathTimer <= 0
+      ) {
+        e.waypoint.x = clampTo(
+          enemy.transform.position.x +
+            rndRange(-ENEMY_PATROL_RADIUS, ENEMY_PATROL_RADIUS),
+          WORLD_WIDTH,
+        );
+        e.waypoint.y = clampTo(
+          enemy.transform.position.y +
+            rndRange(-ENEMY_PATROL_RADIUS, ENEMY_PATROL_RADIUS),
+          WORLD_HEIGHT,
+        );
+        e.repathTimer = ENEMY_REPATH_TIME;
+      }
+      goalX = e.waypoint.x;
+      goalY = e.waypoint.y;
+    }
+
+    // Turn the nose toward the goal, short way, capped at the turn rate.
+    const ddx = goalX - enemy.transform.position.x;
+    const ddy = goalY - enemy.transform.position.y;
+    const targetDeg = Math.atan2(ddx, -ddy) / DEG_TO_RAD;
+    const diff = angleDiff(enemy.transform.rotation, targetDeg);
+    const maxTurn = SHIP_ROTATION_SPEED * dt;
+    enemy.transform.rotation += Math.max(-maxTurn, Math.min(maxTurn, diff));
+
+    const rad = enemy.transform.rotation * DEG_TO_RAD;
+    const hx = Math.sin(rad);
+    const hy = -Math.cos(rad);
+
+    // Always thrust along the nose (like a player holding the stick), so it
+    // banks and arcs onto its heading rather than stopping to pivot.
+    enemy.velocity.x += hx * ENEMY_THRUST * dt;
+    enemy.velocity.y += hy * ENEMY_THRUST * dt;
+
+    // Grip: forward/lateral split dragged separately (same as the ship).
+    const perpX = -hy;
+    const perpY = hx;
+    const fwd = enemy.velocity.x * hx + enemy.velocity.y * hy;
+    const lat = enemy.velocity.x * perpX + enemy.velocity.y * perpY;
+    const newFwd = fwd * Math.max(0, 1 - SHIP_FORWARD_DRAG * dt);
+    const newLat = lat * Math.max(0, 1 - SHIP_LATERAL_DRAG * dt);
+    enemy.velocity.x = hx * newFwd + perpX * newLat;
+    enemy.velocity.y = hy * newFwd + perpY * newLat;
+
+    // Separation: push apart from other live enemies so they swarm not stack.
+    for (const other of enemies.raw) {
+      if (other === enemy || other.enemy.respawnTimer > 0) continue;
+      const sx = enemy.transform.position.x - other.transform.position.x;
+      const sy = enemy.transform.position.y - other.transform.position.y;
+      const d2 = sx * sx + sy * sy;
+      if (d2 > 0 && d2 < ENEMY_SEPARATION * ENEMY_SEPARATION) {
+        const d = Math.sqrt(d2);
+        const push =
+          ((ENEMY_SEPARATION - d) / ENEMY_SEPARATION) *
+          ENEMY_SEPARATION_FORCE *
+          dt;
+        enemy.velocity.x += (sx / d) * push;
+        enemy.velocity.y += (sy / d) * push;
+      }
+    }
+
+    enemy.transform.position.x += enemy.velocity.x * dt;
+    enemy.transform.position.y += enemy.velocity.y * dt;
+  }
+}
+
+/** Decay hit flashes and respawn dead enemies near the ship after the delay. */
+export function enemySystem(dt: number) {
+  const ship = ships.raw[0];
+  for (const enemy of enemies.raw) {
+    if (enemy.enemy.hitFlash > 0) {
+      enemy.enemy.hitFlash = Math.max(0, enemy.enemy.hitFlash - dt);
+    }
+    if (enemy.enemy.respawnTimer > 0) {
+      enemy.enemy.respawnTimer -= dt;
+      if (enemy.enemy.respawnTimer <= 0 && ship !== undefined) {
+        const angle = rndRange(0, TAU);
+        const dist = rndRange(180, 260);
+        const nx = ship.transform.position.x + Math.cos(angle) * dist;
+        const ny = ship.transform.position.y + Math.sin(angle) * dist;
+        enemy.transform.position.x = nx;
+        enemy.transform.position.y = ny;
+        enemy.previous.position.x = nx;
+        enemy.previous.position.y = ny;
+        enemy.previous.rotation = enemy.transform.rotation;
+        enemy.velocity.x = 0;
+        enemy.velocity.y = 0;
+        enemy.enemy.respawnTimer = 0;
+        enemy.enemy.health = ENEMY_HEALTH;
+        enemy.enemy.state = 'patrol';
+        enemy.enemy.waypoint.x =
+          nx + rndRange(-ENEMY_PATROL_RADIUS, ENEMY_PATROL_RADIUS);
+        enemy.enemy.waypoint.y =
+          ny + rndRange(-ENEMY_PATROL_RADIUS, ENEMY_PATROL_RADIUS);
+        enemy.enemy.repathTimer = rndRange(1, ENEMY_REPATH_TIME);
+      }
+    }
+  }
+}
+
+/** Spawn ENEMY_COUNT enemies ringed loosely around a point. */
+export function spawnEnemies(count: number, cx: number, cy: number) {
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * TAU;
+    const dist = 150 + i * 40;
+    createEnemy(world, cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist);
   }
 }
 
@@ -401,6 +637,50 @@ function drawParticles(
       Math.floor(pos.y),
       p.particle.size,
       p.particle.size,
+    );
+  }
+}
+
+/** Draw enemies in the low-res world pass, interpolated, facing their heading;
+ * a hit flashes as a quick scale pop. */
+function drawEnemies(
+  interpolate: boolean,
+  alpha: number,
+  viewLeft: number,
+  viewTop: number,
+  viewRight: number,
+  viewBottom: number,
+) {
+  for (const enemy of enemies.raw) {
+    if (enemy.enemy.respawnTimer > 0) continue;
+    let ex = enemy.transform.position.x;
+    let ey = enemy.transform.position.y;
+    let er = enemy.transform.rotation;
+    if (interpolate) {
+      ex = lerp(enemy.previous.position.x, ex, alpha);
+      ey = lerp(enemy.previous.position.y, ey, alpha);
+      er = lerp(enemy.previous.rotation, er, alpha);
+    }
+    if (
+      ex < viewLeft - 6 ||
+      ex > viewRight + 6 ||
+      ey < viewTop - 6 ||
+      ey > viewBottom + 6
+    ) {
+      continue;
+    }
+    const scale = enemy.enemy.hitFlash > 0 ? 1.4 : 1;
+    love.graphics.setColor(1, 1, 1, 1);
+    love.graphics.draw(
+      shipImage,
+      enemyQuad,
+      Math.floor(ex),
+      Math.floor(ey),
+      er * DEG_TO_RAD,
+      scale,
+      scale,
+      4,
+      4,
     );
   }
 }
@@ -679,6 +959,7 @@ export function renderSystem(
   love.graphics.translate(-flooredCamX, -flooredCamY);
   drawPlanets(viewLeft, viewTop, viewRight, viewBottom);
   drawParticles(viewLeft, viewTop, viewRight, viewBottom);
+  drawEnemies(interpolate, alpha, viewLeft, viewTop, viewRight, viewBottom);
   drawBullets(interpolate, alpha, viewLeft, viewTop, viewRight, viewBottom);
   love.graphics.pop();
 

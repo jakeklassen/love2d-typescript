@@ -2,6 +2,7 @@ import { Canvas, Font } from 'love.graphics';
 import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
+  ENEMY_COUNT,
   FIXED_DT,
   GAME_HEIGHT,
   GAME_WIDTH,
@@ -17,15 +18,19 @@ import { SPACE_COLOR } from './game/palette';
 import {
   bulletSystem,
   drawShipGlow,
+  enemyAiSystem,
+  enemySystem,
   getShip,
   initQueries,
   particleSystem,
   pulseSystem,
   renderSystem,
   setBulletSprite,
+  setEnemySprite,
   setShipSprite,
   shipSystem,
   shootSystem,
+  spawnEnemies,
 } from './game/systems';
 import { World } from './lib/objecs/world';
 
@@ -93,10 +98,22 @@ love.load = () => {
   );
   setBulletSprite(bulletQuad);
 
+  // Enemy sprite: tile (11, 8) on the sheet = pixel (88, 64).
+  const enemyQuad = love.graphics.newQuad(
+    88,
+    64,
+    8,
+    8,
+    shipSheet.getWidth(),
+    shipSheet.getHeight(),
+  );
+  setEnemySprite(enemyQuad);
+
   world = new World<Entity>();
   createShip(world, WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
   populateWorld(world);
   initQueries(world);
+  spawnEnemies(ENEMY_COUNT, WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
 };
 
 love.update = (dt) => {
@@ -110,6 +127,8 @@ love.update = (dt) => {
     shipSystem(FIXED_DT);
     shootSystem(FIXED_DT);
     bulletSystem(FIXED_DT);
+    enemyAiSystem(FIXED_DT);
+    enemySystem(FIXED_DT);
     particleSystem(FIXED_DT);
     accumulator -= FIXED_DT;
   }
