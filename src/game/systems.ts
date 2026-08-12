@@ -5,7 +5,7 @@ import {
   SafeEntity,
   World,
 } from '../lib/objecs/world';
-import { createParticle } from './factories';
+import { createBullet, createParticle } from './factories';
 import { actions } from './input';
 import {
   BOOST_DASH_COST,
@@ -13,8 +13,12 @@ import {
   BOOST_DRAIN,
   BOOST_FUEL_MAX,
   BOOST_REFILL,
+  BULLET_SPEED,
   GAME_HEIGHT,
   GAME_WIDTH,
+  MUZZLE_OFFSET,
+  SHOOT_INTERVAL,
+  SHOT_SPREAD,
   LIGHT_DIR_X,
   LIGHT_DIR_Y,
   SCALE,
@@ -42,6 +46,10 @@ type PlanetEntity = SafeEntity<Entity, 'transform' | 'planet' | 'pulse'>;
 type StarEntity = SafeEntity<Entity, 'transform' | 'star' | 'pulse'>;
 type PulseEntity = SafeEntity<Entity, 'pulse'>;
 type ParticleEntity = SafeEntity<Entity, 'transform' | 'velocity' | 'particle'>;
+type BulletEntity = SafeEntity<
+  Entity,
+  'transform' | 'previous' | 'velocity' | 'bullet'
+>;
 
 // Live archetype queries, created once from the world and reused every frame.
 let world!: World<Entity>;
@@ -50,6 +58,7 @@ let planets!: ReadonlyEntityCollection<PlanetEntity>;
 let stars!: ReadonlyEntityCollection<StarEntity>;
 let pulses!: ReadonlyEntityCollection<PulseEntity>;
 let particles!: ReadonlyEntityCollection<ParticleEntity>;
+let bullets!: ReadonlyEntityCollection<BulletEntity>;
 
 export function initQueries(w: World<Entity>) {
   world = w;
@@ -58,6 +67,7 @@ export function initQueries(w: World<Entity>) {
   stars = w.archetype('transform', 'star', 'pulse').entities;
   pulses = w.archetype('pulse').entities;
   particles = w.archetype('transform', 'velocity', 'particle').entities;
+  bullets = w.archetype('transform', 'previous', 'velocity', 'bullet').entities;
 }
 
 // Ship sprite, supplied by the game on load.
@@ -79,6 +89,13 @@ export function setShipSprite(
   shipQuad = quad;
   shipHalfW = width / 2;
   shipHalfH = height / 2;
+}
+
+// Bullet quad (from the same shmup sheet as the ship). 8x8.
+let bulletQuad!: Quad;
+
+export function setBulletSprite(quad: Quad) {
+  bulletQuad = quad;
 }
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -285,6 +302,64 @@ export function getShip(): ShipEntity {
   return ships.raw[0];
 }
 
+// Countdown between shots; reset to 0 on release so the next tap fires at once.
+let shootCooldown = 0;
+
+/** Fire on a tap, stream at SHOOT_INTERVAL while held. Double-wide: two parallel
+ * bullets offset left/right of the nose line. Bullets inherit ship velocity. */
+export function shootSystem(dt: number) {
+  shootCooldown -= dt;
+  if (!actions.shoot()) {
+    shootCooldown = 0;
+    return;
+  }
+  if (shootCooldown > 0) return;
+  shootCooldown = SHOOT_INTERVAL;
+
+  const ship = ships.raw[0];
+  if (ship === undefined) return;
+  const rad = ship.transform.rotation * DEG_TO_RAD;
+  const hx = Math.sin(rad);
+  const hy = -Math.cos(rad);
+  const perpX = -hy;
+  const perpY = hx;
+  const muzzleX = ship.transform.position.x + hx * MUZZLE_OFFSET;
+  const muzzleY = ship.transform.position.y + hy * MUZZLE_OFFSET;
+  const vx = ship.velocity.x + hx * BULLET_SPEED;
+  const vy = ship.velocity.y + hy * BULLET_SPEED;
+  for (const side of [-1, 1]) {
+    createBullet(
+      world,
+      muzzleX + perpX * SHOT_SPREAD * side,
+      muzzleY + perpY * SHOT_SPREAD * side,
+      ship.transform.rotation,
+      vx,
+      vy,
+    );
+  }
+}
+
+/** Advance bullets, age them, and reap the expired ones. */
+export function bulletSystem(dt: number) {
+  const dead: BulletEntity[] = [];
+  for (const bullet of bullets.raw) {
+    bullet.previous.position.x = bullet.transform.position.x;
+    bullet.previous.position.y = bullet.transform.position.y;
+    bullet.previous.rotation = bullet.transform.rotation;
+
+    bullet.bullet.age += dt;
+    if (bullet.bullet.age >= bullet.bullet.maxAge) {
+      dead.push(bullet);
+      continue;
+    }
+    bullet.transform.position.x += bullet.velocity.x * dt;
+    bullet.transform.position.y += bullet.velocity.y * dt;
+  }
+  for (const bullet of dead) {
+    world.deleteEntity(bullet);
+  }
+}
+
 // Life-fraction (1 = fresh, 0 = dead) → palette color. Stepped, not blended,
 // to keep the fade "pixely".
 function flameColor(t: number) {
@@ -326,6 +401,48 @@ function drawParticles(
       Math.floor(pos.y),
       p.particle.size,
       p.particle.size,
+    );
+  }
+}
+
+/** Draw bullets in the low-res world pass (already translated by -flooredCam),
+ * rotated to their heading. */
+function drawBullets(
+  interpolate: boolean,
+  alpha: number,
+  viewLeft: number,
+  viewTop: number,
+  viewRight: number,
+  viewBottom: number,
+) {
+  for (const bullet of bullets.raw) {
+    let bx = bullet.transform.position.x;
+    let by = bullet.transform.position.y;
+    let br = bullet.transform.rotation;
+    if (interpolate) {
+      bx = lerp(bullet.previous.position.x, bx, alpha);
+      by = lerp(bullet.previous.position.y, by, alpha);
+      br = lerp(bullet.previous.rotation, br, alpha);
+    }
+    if (
+      bx < viewLeft - 4 ||
+      bx > viewRight + 4 ||
+      by < viewTop - 4 ||
+      by > viewBottom + 4
+    ) {
+      continue;
+    }
+    love.graphics.setColor(1, 1, 1, 1);
+    love.graphics.draw(
+      shipImage,
+      bulletQuad,
+      Math.floor(bx),
+      Math.floor(by),
+      br * DEG_TO_RAD,
+      1,
+      1,
+      4,
+      4,
     );
   }
 }
@@ -562,6 +679,7 @@ export function renderSystem(
   love.graphics.translate(-flooredCamX, -flooredCamY);
   drawPlanets(viewLeft, viewTop, viewRight, viewBottom);
   drawParticles(viewLeft, viewTop, viewRight, viewBottom);
+  drawBullets(interpolate, alpha, viewLeft, viewTop, viewRight, viewBottom);
   love.graphics.pop();
 
   // --- composite the full scene into the scene target (for post-processing) ---

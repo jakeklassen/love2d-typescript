@@ -15,14 +15,17 @@ import { Entity } from './game/entity';
 import { createShip, populateWorld } from './game/factories';
 import { SPACE_COLOR } from './game/palette';
 import {
+  bulletSystem,
   drawShipGlow,
   getShip,
   initQueries,
   particleSystem,
   pulseSystem,
   renderSystem,
+  setBulletSprite,
   setShipSprite,
   shipSystem,
+  shootSystem,
 } from './game/systems';
 import { World } from './lib/objecs/world';
 
@@ -79,6 +82,17 @@ love.load = () => {
   );
   setShipSprite(shipSheet, shipQuad, shipFrameW, shipFrameH);
 
+  // Bullet sprite: top-row frame 6 (the blue bolt) from the same sheet.
+  const bulletQuad = love.graphics.newQuad(
+    48,
+    0,
+    8,
+    8,
+    shipSheet.getWidth(),
+    shipSheet.getHeight(),
+  );
+  setBulletSprite(bulletQuad);
+
   world = new World<Entity>();
   createShip(world, WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
   populateWorld(world);
@@ -94,6 +108,8 @@ love.update = (dt) => {
 
   while (accumulator >= FIXED_DT) {
     shipSystem(FIXED_DT);
+    shootSystem(FIXED_DT);
+    bulletSystem(FIXED_DT);
     particleSystem(FIXED_DT);
     accumulator -= FIXED_DT;
   }
