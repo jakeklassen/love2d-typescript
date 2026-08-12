@@ -27,11 +27,13 @@ import {
   getShip,
   homingSystem,
   initQueries,
+  MINIMAP_DIAMETER,
   particleSystem,
   pulseSystem,
   renderSystem,
   setBulletSprite,
   setEnemySprite,
+  setMinimapCanvas,
   setShipSprite,
   shipSystem,
   shootSystem,
@@ -53,6 +55,7 @@ let elapsed = 0;
 let interpolation = true;
 let subpixel = true;
 let crt = false;
+let minimap = true;
 
 love.load = () => {
   love.window.setTitle('objecs • space drift');
@@ -77,6 +80,11 @@ love.load = () => {
   sceneCanvas = love.graphics.newCanvas(WINDOW_WIDTH, WINDOW_HEIGHT);
   sceneCanvas.setFilter('nearest', 'nearest');
   initCrt(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+  // Low-res canvas for the circular minimap, blitted ×SCALE by the renderer.
+  const minimapCanvas = love.graphics.newCanvas(MINIMAP_DIAMETER, MINIMAP_DIAMETER);
+  minimapCanvas.setFilter('nearest', 'nearest');
+  setMinimapCanvas(minimapCanvas);
 
   // The player ship sprite (8x8 quad from the shmup sheet).
   const shipSheet = love.graphics.newImage('res/images/shmup.png');
@@ -152,6 +160,8 @@ love.keypressed = (key) => {
     subpixel = !subpixel;
   } else if (key === 'c') {
     crt = !crt;
+  } else if (key === 'm') {
+    minimap = !minimap;
   }
 };
 
@@ -230,11 +240,13 @@ function drawHud() {
 
   // Toggles + gamepad indicator along the bottom.
   love.graphics.setColor(1, 1, 1, interpolation ? 1 : 0.45);
-  love.graphics.print(`[i] interp ${interpolation ? 'on' : 'off'}`, 3, GAME_HEIGHT - 27);
+  love.graphics.print(`[i] interp ${interpolation ? 'on' : 'off'}`, 3, GAME_HEIGHT - 35);
   love.graphics.setColor(1, 1, 1, subpixel ? 1 : 0.45);
-  love.graphics.print(`[p] subpix ${subpixel ? 'on' : 'off'}`, 3, GAME_HEIGHT - 19);
+  love.graphics.print(`[p] subpix ${subpixel ? 'on' : 'off'}`, 3, GAME_HEIGHT - 27);
   love.graphics.setColor(1, 1, 1, crt ? 1 : 0.45);
-  love.graphics.print(`[c] crt ${crt ? 'on' : 'off'}`, 3, GAME_HEIGHT - 11);
+  love.graphics.print(`[c] crt ${crt ? 'on' : 'off'}`, 3, GAME_HEIGHT - 19);
+  love.graphics.setColor(1, 1, 1, minimap ? 1 : 0.45);
+  love.graphics.print(`[m] map ${minimap ? 'on' : 'off'}`, 3, GAME_HEIGHT - 11);
   if (gamepadConnected()) {
     love.graphics.setColor(0, 0.88, 0.21, 1);
     love.graphics.print('gamepad', GAME_WIDTH - 40, GAME_HEIGHT - 11);
@@ -248,7 +260,7 @@ love.draw = () => {
 
   // Composite the scene + HUD into the scene canvas (renderSystem leaves it as
   // the active target).
-  renderSystem(canvas, sceneCanvas, interpolation, subpixel, alpha);
+  renderSystem(canvas, sceneCanvas, interpolation, subpixel, minimap, alpha);
   drawHud();
   love.graphics.setCanvas();
 

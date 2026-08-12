@@ -137,6 +137,21 @@ export function setEnemySprite(quad: Quad) {
   enemyQuad = quad;
 }
 
+// Minimap: a low-res circular radar, drawn to its own canvas then blitted up
+// ×SCALE so it shares the pixel grid. Geometry in game (low-res) pixels.
+const MINIMAP_RADIUS = 14;
+const MINIMAP_MARGIN = 4;
+const MINIMAP_D = MINIMAP_RADIUS * 2 + 1; // 29
+const MINIMAP_ZOOM = 1 / 32; // minimap px per world px
+const MINIMAP_TICK_SWEEP = 0.6; // heading-tick arc width, radians
+let minimapCanvas: Canvas | undefined;
+
+export function setMinimapCanvas(canvas: Canvas) {
+  minimapCanvas = canvas;
+}
+
+export const MINIMAP_DIAMETER = MINIMAP_D;
+
 const DEG_TO_RAD = Math.PI / 180;
 
 /** Shortest signed angle a→b in degrees, wrapped to [-180, 180]. */
@@ -881,6 +896,36 @@ function drawEnemies(
   }
 }
 
+/** One L-shaped corner of the lock-on reticle. */
+function reticleCorner(px: number, py: number, dx: number, dy: number, arm: number) {
+  love.graphics.rectangle('fill', dx < 0 ? px : px - arm + 1, py, arm, 1);
+  love.graphics.rectangle('fill', px, dy < 0 ? py : py - arm + 1, 1, arm);
+}
+
+/** Lock-on brackets around the targeted enemy (breathing; orange while
+ * charging, red when just locked). Drawn in the low-res world pass. */
+function drawReticle(interpolate: boolean, alpha: number) {
+  const target = getLockTarget();
+  if (target === undefined || target.transform === undefined) return;
+  let cx = target.transform.position.x;
+  let cy = target.transform.position.y;
+  if (interpolate && target.previous !== undefined) {
+    cx = lerp(target.previous.position.x, cx, alpha);
+    cy = lerp(target.previous.position.y, cy, alpha);
+  }
+  const fx = Math.floor(cx);
+  const fy = Math.floor(cy);
+  const charging = getHomingCharge().charging;
+  const half = 6 + (Math.sin(love.timer.getTime() * 7) > 0.4 ? 1 : 0);
+  const arm = 2;
+  const col = charging ? Pico8.orange : Pico8.red;
+  love.graphics.setColor(col[0], col[1], col[2], 1);
+  reticleCorner(fx - half, fy - half, -1, -1, arm);
+  reticleCorner(fx + half, fy - half, 1, -1, arm);
+  reticleCorner(fx - half, fy + half, -1, 1, arm);
+  reticleCorner(fx + half, fy + half, 1, 1, arm);
+}
+
 /** Draw bullets in the low-res world pass (already translated by -flooredCam),
  * rotated to their heading. */
 function drawBullets(
@@ -1090,6 +1135,65 @@ function drawShip(
   love.graphics.pop();
 }
 
+/** Render the circular radar to the minimap canvas: planet dots, red enemy
+ * blips (clamped to the rim), the ship as the centre pixel, and a heading tick. */
+function renderMinimap(shipX: number, shipY: number, rotationDeg: number) {
+  if (minimapCanvas === undefined) return;
+  const r = MINIMAP_RADIUS;
+  const zoom = MINIMAP_ZOOM;
+
+  love.graphics.setCanvas(minimapCanvas);
+  love.graphics.clear(0, 0, 0, 0);
+
+  love.graphics.setColor(Pico8.darkBlue[0], Pico8.darkBlue[1], Pico8.darkBlue[2], 0.55);
+  love.graphics.circle('fill', r, r, r);
+
+  for (const planet of planets.raw) {
+    const pl = planet.planet;
+    const dx = (planet.transform.position.x - shipX) * zoom;
+    const dy = (planet.transform.position.y - shipY) * zoom;
+    const dotR = Math.max(1, pl.radius * zoom);
+    if (dx * dx + dy * dy > (r + dotR) * (r + dotR)) continue;
+    love.graphics.setColor(pl.base[0], pl.base[1], pl.base[2], 1);
+    love.graphics.circle('fill', Math.floor(r + dx), Math.floor(r + dy), dotR);
+  }
+
+  for (const enemy of enemies.raw) {
+    if (enemy.enemy.respawnTimer > 0) continue;
+    let dx = (enemy.transform.position.x - shipX) * zoom;
+    let dy = (enemy.transform.position.y - shipY) * zoom;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const max = r - 1;
+    if (dist > max) {
+      dx = (dx / dist) * max;
+      dy = (dy / dist) * max;
+    }
+    love.graphics.setColor(Pico8.red[0], Pico8.red[1], Pico8.red[2], 1);
+    love.graphics.rectangle('fill', Math.floor(r + dx), Math.floor(r + dy), 1, 1);
+  }
+
+  love.graphics.setColor(Pico8.white[0], Pico8.white[1], Pico8.white[2], 1);
+  love.graphics.rectangle('fill', r, r, 1, 1);
+
+  const rad = rotationDeg * DEG_TO_RAD;
+  const headingAngle = Math.atan2(-Math.cos(rad), Math.sin(rad));
+  love.graphics.setColor(Pico8.blue[0], Pico8.blue[1], Pico8.blue[2], 1);
+  love.graphics.setLineWidth(2);
+  love.graphics.arc(
+    'line',
+    'open',
+    r,
+    r,
+    r - 1,
+    headingAngle - MINIMAP_TICK_SWEEP / 2,
+    headingAngle + MINIMAP_TICK_SWEEP / 2,
+  );
+  love.graphics.setLineWidth(1);
+
+  love.graphics.setColor(Pico8.lavender[0], Pico8.lavender[1], Pico8.lavender[2], 0.8);
+  love.graphics.circle('line', r, r, r - 0.5);
+}
+
 /**
  * Render the whole scene to a low-res canvas on the integer pixel grid, then
  * blit it to the screen upscaled with a sub-pixel offset.
@@ -1106,6 +1210,7 @@ export function renderSystem(
   sceneTarget: Canvas,
   interpolate: boolean,
   subpixel: boolean,
+  minimap: boolean,
   alpha: number,
 ) {
   const ship = ships.raw[0];
@@ -1161,6 +1266,7 @@ export function renderSystem(
   drawPlanets(viewLeft, viewTop, viewRight, viewBottom);
   drawParticles(viewLeft, viewTop, viewRight, viewBottom);
   drawEnemies(interpolate, alpha, viewLeft, viewTop, viewRight, viewBottom);
+  drawReticle(interpolate, alpha);
   drawBullets(interpolate, alpha, viewLeft, viewTop, viewRight, viewBottom);
   love.graphics.pop();
 
@@ -1184,6 +1290,21 @@ export function renderSystem(
   const shipScreenY = (GAME_HEIGHT / 2) * SCALE;
   drawShip(ship, shipScreenX, shipScreenY, shipRot);
   drawPlanetLightOnShip(shipX, shipY, shipScreenX, shipScreenY, shipRot);
+
+  // Minimap: render its own low-res canvas, then blit it ×SCALE, top-right.
+  if (minimap && minimapCanvas !== undefined) {
+    renderMinimap(shipX, shipY, shipRot);
+    love.graphics.setCanvas(sceneTarget);
+    love.graphics.setColor(1, 1, 1, 1);
+    love.graphics.draw(
+      minimapCanvas,
+      (GAME_WIDTH - MINIMAP_MARGIN - MINIMAP_D) * SCALE,
+      MINIMAP_MARGIN * SCALE,
+      0,
+      SCALE,
+      SCALE,
+    );
+  }
 
   // Leaves `sceneTarget` as the active canvas for the HUD + post-process.
 }
