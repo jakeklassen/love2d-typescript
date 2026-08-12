@@ -34,6 +34,7 @@ import {
   setBulletSprite,
   setEnemySprite,
   setMinimapCanvas,
+  setShipBankQuads,
   setShipSprite,
   shipSystem,
   shootSystem,
@@ -99,6 +100,25 @@ love.load = () => {
     shipSheet.getHeight(),
   );
   setShipSprite(shipSheet, shipQuad, shipFrameW, shipFrameH);
+
+  // Bank frames: top-row col 1 (x=8) = bank left, col 3 (x=24) = bank right.
+  const bankLeftQuad = love.graphics.newQuad(
+    8,
+    0,
+    shipFrameW,
+    shipFrameH,
+    shipSheet.getWidth(),
+    shipSheet.getHeight(),
+  );
+  const bankRightQuad = love.graphics.newQuad(
+    24,
+    0,
+    shipFrameW,
+    shipFrameH,
+    shipSheet.getWidth(),
+    shipSheet.getHeight(),
+  );
+  setShipBankQuads(bankLeftQuad, bankRightQuad);
 
   // Bullet sprite: top-row frame 6 (the blue bolt) from the same sheet.
   const bulletQuad = love.graphics.newQuad(

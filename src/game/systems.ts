@@ -137,6 +137,27 @@ export function setEnemySprite(quad: Quad) {
   enemyQuad = quad;
 }
 
+// Ship bank frames (left/right lean) from the sheet; `shipQuad` is the standard.
+let shipBankLeftQuad!: Quad;
+let shipBankRightQuad!: Quad;
+
+export function setShipBankQuads(left: Quad, right: Quad) {
+  shipBankLeftQuad = left;
+  shipBankRightQuad = right;
+}
+
+// Bank-sprite state, smoothed + hysteresis so a settled stick doesn't flicker,
+// with a short cross-fade between frames so swaps dissolve rather than pop.
+let bankTurn = 0;
+let bankState = 0; // -1 left, 0 level, 1 right
+let bankFade = 0; // remaining cross-fade, 0..1
+let bankPrevQuad: Quad | undefined;
+let bankCurQuad: Quad | undefined;
+const BANK_SMOOTH = 0.15;
+const BANK_ENTER = 1.3;
+const BANK_EXIT = 0.4;
+const BANK_FADE = 0.09;
+
 // Minimap: a low-res circular radar, drawn to its own canvas then blitted up
 // ×SCALE so it shares the pixel grid. Geometry in game (low-res) pixels.
 const MINIMAP_RADIUS = 14;
@@ -1117,10 +1138,11 @@ function drawPlanets(
  * sub-pixel scroll. `screenX/screenY` are in physical screen pixels.
  */
 function drawShip(
-  ship: ShipEntity,
   screenX: number,
   screenY: number,
   rotationDeg: number,
+  quad: Quad,
+  alpha: number,
 ) {
   love.graphics.push();
   love.graphics.translate(screenX, screenY);
@@ -1129,10 +1151,28 @@ function drawShip(
 
   // The ship sprite, drawn centered so it rotates about its middle. The
   // exhaust is a world-space particle trail (see emitThrust), not drawn here.
-  love.graphics.setColor(1, 1, 1, 1);
-  love.graphics.draw(shipImage, shipQuad, 0, 0, 0, 1, 1, shipHalfW, shipHalfH);
+  love.graphics.setColor(1, 1, 1, alpha);
+  love.graphics.draw(shipImage, quad, 0, 0, 0, 1, 1, shipHalfW, shipHalfH);
 
   love.graphics.pop();
+}
+
+/** Choose the bank frame from the smoothed per-step turn (hysteresis), and
+ * cross-fade on a swap. Returns nothing; sets bankCurQuad / bankPrevQuad / fade. */
+function updateBank(turnDelta: number) {
+  if (bankCurQuad === undefined) bankCurQuad = shipQuad;
+  bankTurn = bankTurn * (1 - BANK_SMOOTH) + turnDelta * BANK_SMOOTH;
+  if (bankTurn > BANK_ENTER) bankState = 1;
+  else if (bankTurn < -BANK_ENTER) bankState = -1;
+  else if (Math.abs(bankTurn) < BANK_EXIT) bankState = 0;
+  const nextQuad =
+    bankState < 0 ? shipBankLeftQuad : bankState > 0 ? shipBankRightQuad : shipQuad;
+  if (nextQuad !== bankCurQuad) {
+    bankPrevQuad = bankCurQuad;
+    bankFade = 1;
+    bankCurQuad = nextQuad;
+  }
+  bankFade = Math.max(0, bankFade - love.timer.getDelta() / BANK_FADE);
 }
 
 /** Render the circular radar to the minimap canvas: planet dots, red enemy
@@ -1284,11 +1324,16 @@ export function renderSystem(
   love.graphics.draw(canvas, blitX, blitY, 0, SCALE, SCALE);
   love.graphics.setBlendMode('alpha');
 
-  // Ship on top, pinned to the exact view center.
+  // Ship on top, pinned to the exact view center. Bank frame from the turn,
+  // cross-faded on a swap (outgoing frame fades over the new one).
   lastShipRot = shipRot;
   const shipScreenX = (GAME_WIDTH / 2) * SCALE;
   const shipScreenY = (GAME_HEIGHT / 2) * SCALE;
-  drawShip(ship, shipScreenX, shipScreenY, shipRot);
+  updateBank(ship.transform.rotation - ship.previous.rotation);
+  drawShip(shipScreenX, shipScreenY, shipRot, bankCurQuad!, 1);
+  if (bankFade > 0 && bankPrevQuad !== undefined) {
+    drawShip(shipScreenX, shipScreenY, shipRot, bankPrevQuad, bankFade);
+  }
   drawPlanetLightOnShip(shipX, shipY, shipScreenX, shipScreenY, shipRot);
 
   // Minimap: render its own low-res canvas, then blit it ×SCALE, top-right.
