@@ -21,6 +21,7 @@ import {
   enemyAiSystem,
   enemySystem,
   getShip,
+  homingSystem,
   initQueries,
   particleSystem,
   pulseSystem,
@@ -126,6 +127,7 @@ love.update = (dt) => {
   while (accumulator >= FIXED_DT) {
     shipSystem(FIXED_DT);
     shootSystem(FIXED_DT);
+    homingSystem(FIXED_DT);
     bulletSystem(FIXED_DT);
     enemyAiSystem(FIXED_DT);
     enemySystem(FIXED_DT);

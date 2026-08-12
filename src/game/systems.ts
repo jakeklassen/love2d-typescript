@@ -5,7 +5,12 @@ import {
   SafeEntity,
   World,
 } from '../lib/objecs/world';
-import { createBullet, createEnemy, createParticle } from './factories';
+import {
+  createBullet,
+  createEnemy,
+  createHomingBullet,
+  createParticle,
+} from './factories';
 import { actions } from './input';
 import {
   BOOST_DASH_COST,
@@ -28,6 +33,15 @@ import {
   ENEMY_WAYPOINT_REACHED,
   GAME_HEIGHT,
   GAME_WIDTH,
+  HOMING_CHARGE_MAX,
+  HOMING_CLOSE_DIST,
+  HOMING_LOCK_MARGIN,
+  HOMING_PROXIMITY,
+  HOMING_SEEK_DELAY,
+  HOMING_SPEED,
+  HOMING_SPREAD_DEG,
+  HOMING_STAGGER,
+  HOMING_TURN_CLOSE_BOOST,
   MUZZLE_OFFSET,
   SHOOT_INTERVAL,
   SHOT_SPREAD,
@@ -377,6 +391,41 @@ export function bulletSystem(dt: number) {
       dead.push(bullet);
       continue;
     }
+
+    // Homing: after a brief straight launch phase, steer toward the target with
+    // the turn rate ramping up as it closes, so it tightens on instead of
+    // orbiting. Flies straight if the target has died/respawned.
+    const homing = bullet.homing;
+    if (
+      homing !== undefined &&
+      bullet.bullet.age >= HOMING_SEEK_DELAY &&
+      homing.target.transform !== undefined &&
+      (homing.target.enemy === undefined ||
+        homing.target.enemy.respawnTimer <= 0)
+    ) {
+      const dx = homing.target.transform.position.x - bullet.transform.position.x;
+      const dy = homing.target.transform.position.y - bullet.transform.position.y;
+      let dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.001) dist = 0.001;
+      const closeBoost =
+        1 +
+        HOMING_TURN_CLOSE_BOOST *
+          Math.max(0, (HOMING_CLOSE_DIST - dist) / HOMING_CLOSE_DIST);
+      const cur = Math.atan2(bullet.velocity.y, bullet.velocity.x);
+      let diff = Math.atan2(dy, dx) - cur;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // wrap
+      const maxStep = homing.turnRate * closeBoost * DEG_TO_RAD * dt;
+      const next = cur + Math.max(-maxStep, Math.min(maxStep, diff));
+      const speed = Math.sqrt(
+        bullet.velocity.x * bullet.velocity.x +
+          bullet.velocity.y * bullet.velocity.y,
+      );
+      bullet.velocity.x = Math.cos(next) * speed;
+      bullet.velocity.y = Math.sin(next) * speed;
+      bullet.transform.rotation =
+        Math.atan2(Math.cos(next), -Math.sin(next)) / DEG_TO_RAD;
+    }
+
     bullet.transform.position.x += bullet.velocity.x * dt;
     bullet.transform.position.y += bullet.velocity.y * dt;
 
@@ -384,7 +433,10 @@ export function bulletSystem(dt: number) {
       if (enemy.enemy.respawnTimer > 0) continue;
       const dx = enemy.transform.position.x - bullet.transform.position.x;
       const dy = enemy.transform.position.y - bullet.transform.position.y;
-      const hitR = ENEMY_RADIUS + BULLET_RADIUS;
+      const hitR =
+        ENEMY_RADIUS +
+        BULLET_RADIUS +
+        (bullet.homing !== undefined ? HOMING_PROXIMITY : 0);
       if (dx * dx + dy * dy <= hitR * hitR) {
         hitEnemy(enemy, bullet.transform.position.x, bullet.transform.position.y);
         dead.push(bullet);
@@ -596,6 +648,150 @@ export function spawnEnemies(count: number, cx: number, cy: number) {
   }
 }
 
+// ── Homing charge shot ──────────────────────────────────────────────────────
+
+/** Projectiles awarded for a charge held `t` seconds (0 below the 1s floor). */
+function chargeToCount(t: number): number {
+  if (t >= 3) return 8;
+  if (t >= 2) return 5;
+  if (t >= 1) return 3;
+  return 0;
+}
+
+/** True if `target` still exists and isn't mid-respawn. */
+function targetIsLive(target: Entity | undefined): boolean {
+  return (
+    target !== undefined &&
+    target.transform !== undefined &&
+    (target.enemy === undefined || target.enemy.respawnTimer <= 0)
+  );
+}
+
+/** The nearest live enemy currently on screen, else undefined. */
+function findLockTarget(ship: ShipEntity): Entity | undefined {
+  const halfW = GAME_WIDTH / 2 + HOMING_LOCK_MARGIN;
+  const halfH = GAME_HEIGHT / 2 + HOMING_LOCK_MARGIN;
+  let best: Entity | undefined = undefined;
+  let bestDistSq = math.huge;
+  for (const enemy of enemies.raw) {
+    if (enemy.enemy.respawnTimer > 0) continue;
+    const dx = enemy.transform.position.x - ship.transform.position.x;
+    const dy = enemy.transform.position.y - ship.transform.position.y;
+    if (Math.abs(dx) > halfW || Math.abs(dy) > halfH) continue;
+    const distSq = dx * dx + dy * dy;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      best = enemy;
+    }
+  }
+  return best;
+}
+
+let homingCharge = 0;
+let homingHeld = false;
+let lockTarget: Entity | undefined = undefined;
+let latchedTarget: Entity | undefined = undefined;
+let volleyRemaining = 0;
+let volleyTotal = 0;
+let volleyTimer = 0;
+let volleyTarget: Entity | undefined = undefined;
+
+/** Fan offset (deg) for the `i`-th missile of a `total` volley, ordered
+ * CENTRE-OUT so the spread blooms outward like a bulb instead of wiping across. */
+function fanOffsetDeg(i: number, total: number): number {
+  if (total <= 1) return 0;
+  const fracs: number[] = [];
+  for (let k = 0; k < total; k++) fracs.push(k / (total - 1) - 0.5);
+  fracs.sort((a, b) => {
+    const da = Math.abs(a);
+    const db = Math.abs(b);
+    if (da !== db) return da - db;
+    return a - b;
+  });
+  return fracs[i] * HOMING_SPREAD_DEG;
+}
+
+function launchHomingMissile(ship: ShipEntity, target: Entity, index: number) {
+  const spread = fanOffsetDeg(index, volleyTotal);
+  const angle = (ship.transform.rotation + spread) * DEG_TO_RAD;
+  const hx = Math.sin(angle);
+  const hy = -Math.cos(angle);
+  createHomingBullet(
+    world,
+    ship.transform.position.x + hx * MUZZLE_OFFSET,
+    ship.transform.position.y + hy * MUZZLE_OFFSET,
+    ship.transform.rotation + spread,
+    hx * HOMING_SPEED,
+    hy * HOMING_SPEED,
+    target,
+  );
+}
+
+/** Charge while the homing button is held; on release fire a homing volley at
+ * the locked (nearest on-screen) enemy, emitted centre-out over the next steps. */
+export function homingSystem(dt: number) {
+  const ship = ships.raw[0];
+  lockTarget = ship !== undefined ? findLockTarget(ship) : undefined;
+
+  const held = actions.homing();
+  if (held) {
+    homingCharge = Math.min(HOMING_CHARGE_MAX, homingCharge + dt);
+    if (lockTarget !== undefined) latchedTarget = lockTarget;
+  } else if (homingHeld) {
+    const count = chargeToCount(homingCharge);
+    const target = targetIsLive(latchedTarget) ? latchedTarget : lockTarget;
+    if (count > 0 && target !== undefined) {
+      volleyRemaining = count;
+      volleyTotal = count;
+      volleyTimer = 0;
+      volleyTarget = target;
+    }
+    homingCharge = 0;
+    latchedTarget = undefined;
+  }
+  homingHeld = held;
+
+  // Emit the queued volley: centre (or innermost pair) first, then each mirror
+  // pair together on the next tick, so the spread blooms outward.
+  if (volleyRemaining > 0 && volleyTarget !== undefined && ship !== undefined) {
+    volleyTimer -= dt;
+    while (volleyRemaining > 0 && volleyTimer <= 0) {
+      const i0 = volleyTotal - volleyRemaining;
+      const offset0 = fanOffsetDeg(i0, volleyTotal);
+      launchHomingMissile(ship, volleyTarget, i0);
+      volleyRemaining -= 1;
+      if (
+        volleyRemaining > 0 &&
+        Math.abs(fanOffsetDeg(volleyTotal - volleyRemaining, volleyTotal) + offset0) <
+          1e-6
+      ) {
+        launchHomingMissile(ship, volleyTarget, volleyTotal - volleyRemaining);
+        volleyRemaining -= 1;
+      }
+      volleyTimer += HOMING_STAGGER;
+    }
+    if (volleyRemaining <= 0) volleyTarget = undefined;
+  }
+}
+
+/** The currently locked enemy (for the reticle), or undefined. */
+export function getLockTarget(): Entity | undefined {
+  return lockTarget;
+}
+
+/** Charge readout for the HUD/reticle: pip count, seconds held, hold state. */
+export function getHomingCharge(): {
+  count: number;
+  seconds: number;
+  charging: boolean;
+} {
+  return {
+    count: chargeToCount(homingCharge),
+    seconds: homingCharge,
+    charging: homingHeld,
+  };
+}
+
 // Life-fraction (1 = fresh, 0 = dead) → palette color. Stepped, not blended,
 // to keep the fade "pixely".
 function flameColor(t: number) {
@@ -712,7 +908,12 @@ function drawBullets(
     ) {
       continue;
     }
-    love.graphics.setColor(1, 1, 1, 1);
+    // Homing missiles read orange, straight shots white.
+    if (bullet.homing !== undefined) {
+      love.graphics.setColor(Pico8.orange[0], Pico8.orange[1], Pico8.orange[2], 1);
+    } else {
+      love.graphics.setColor(1, 1, 1, 1);
+    }
     love.graphics.draw(
       shipImage,
       bulletQuad,
