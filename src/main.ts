@@ -1,11 +1,13 @@
 import { Canvas, Font } from 'love.graphics';
 import {
+  BOOST_FUEL_MAX,
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
   ENEMY_COUNT,
   FIXED_DT,
   GAME_HEIGHT,
   GAME_WIDTH,
+  HOMING_CHARGE_MAX,
   MAX_FRAME_TIME,
   SCALE,
   WORLD_HEIGHT,
@@ -14,12 +16,14 @@ import {
 import { applyCrt, initCrt } from './game/crt';
 import { Entity } from './game/entity';
 import { createShip, populateWorld } from './game/factories';
-import { SPACE_COLOR } from './game/palette';
+import { gamepadConnected } from './game/input';
+import { Pico8, SPACE_COLOR } from './game/palette';
 import {
   bulletSystem,
   drawShipGlow,
   enemyAiSystem,
   enemySystem,
+  getHomingCharge,
   getShip,
   homingSystem,
   initQueries,
@@ -151,6 +155,34 @@ love.keypressed = (key) => {
   }
 };
 
+// HUD meter geometry, in game (low-res) pixels.
+const METER_X = 22;
+const METER_W = 46;
+const METER_H = 3;
+
+/** A labelled meter bar with an optional tier tick at 1/3 and 2/3. */
+function drawMeter(
+  x: number,
+  y: number,
+  frac: number,
+  color: [number, number, number],
+  ticks: boolean,
+) {
+  love.graphics.setColor(0.11, 0.17, 0.33, 0.85); // dark backing
+  love.graphics.rectangle('fill', x, y, METER_W, METER_H);
+  if (frac > 0) {
+    love.graphics.setColor(color[0], color[1], color[2], 1);
+    love.graphics.rectangle('fill', x, y, Math.floor(METER_W * frac), METER_H);
+  }
+  if (ticks) {
+    love.graphics.setColor(0.76, 0.76, 0.78, 0.9);
+    love.graphics.rectangle('fill', x + Math.floor(METER_W / 3), y - 1, 1, METER_H + 2);
+    love.graphics.rectangle('fill', x + Math.floor((METER_W * 2) / 3), y - 1, 1, METER_H + 2);
+  }
+  love.graphics.setColor(0.76, 0.76, 0.78, 0.8);
+  love.graphics.rectangle('line', x + 0.5, y + 0.5, METER_W, METER_H);
+}
+
 function drawHud() {
   const ship = getShip();
   const speed = Math.floor(
@@ -167,15 +199,46 @@ function drawHud() {
   love.graphics.print(`fps ${love.timer.getFPS()}`, 3, 3);
   love.graphics.print(`spd ${speed}`, 3, 11);
 
+  // Charge meter (homing volley): fills over the window, tier ticks, "xN".
+  const charge = getHomingCharge();
+  const chargeColor: [number, number, number] =
+    charge.count >= 8
+      ? Pico8.red
+      : charge.count >= 5
+        ? Pico8.orange
+        : charge.count >= 3
+          ? Pico8.yellow
+          : Pico8.darkGray;
+  love.graphics.setColor(1, 1, 1, 1);
+  love.graphics.print('chg', 3, 19);
+  drawMeter(METER_X, 20, Math.min(1, charge.seconds / HOMING_CHARGE_MAX), chargeColor, true);
+  if (charge.count > 0) {
+    love.graphics.setColor(Pico8.yellow[0], Pico8.yellow[1], Pico8.yellow[2], 1);
+    love.graphics.print(`x${charge.count}`, METER_X + METER_W + 3, 19);
+  }
+
+  // Boost fuel meter: amber boosting, cyan otherwise, red when low.
+  const fuel = Math.max(0, Math.min(1, ship.ship.fuel / BOOST_FUEL_MAX));
+  const fuelColor: [number, number, number] = ship.ship.boosting
+    ? Pico8.orange
+    : fuel < 0.25
+      ? Pico8.red
+      : Pico8.blue;
+  love.graphics.setColor(1, 1, 1, 1);
+  love.graphics.print('bst', 3, 27);
+  drawMeter(METER_X, 28, fuel, fuelColor, false);
+
+  // Toggles + gamepad indicator along the bottom.
   love.graphics.setColor(1, 1, 1, interpolation ? 1 : 0.45);
-  love.graphics.print(`[i] interp ${interpolation ? 'on' : 'off'}`, 3, GAME_HEIGHT - 35);
+  love.graphics.print(`[i] interp ${interpolation ? 'on' : 'off'}`, 3, GAME_HEIGHT - 27);
   love.graphics.setColor(1, 1, 1, subpixel ? 1 : 0.45);
-  love.graphics.print(`[p] subpix ${subpixel ? 'on' : 'off'}`, 3, GAME_HEIGHT - 27);
+  love.graphics.print(`[p] subpix ${subpixel ? 'on' : 'off'}`, 3, GAME_HEIGHT - 19);
   love.graphics.setColor(1, 1, 1, crt ? 1 : 0.45);
-  love.graphics.print(`[c] crt ${crt ? 'on' : 'off'}`, 3, GAME_HEIGHT - 19);
-  const boosting = love.keyboard.isDown('z');
-  love.graphics.setColor(1, 1, 1, boosting ? 1 : 0.45);
-  love.graphics.print('[z] boost', 3, GAME_HEIGHT - 11);
+  love.graphics.print(`[c] crt ${crt ? 'on' : 'off'}`, 3, GAME_HEIGHT - 11);
+  if (gamepadConnected()) {
+    love.graphics.setColor(0, 0.88, 0.21, 1);
+    love.graphics.print('gamepad', GAME_WIDTH - 40, GAME_HEIGHT - 11);
+  }
 
   love.graphics.pop();
 }
