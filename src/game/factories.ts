@@ -1,6 +1,17 @@
 import { rndFromList, rndInt, rndRange, TAU } from '../lib/math';
 import { World } from '../lib/objecs/world';
-import { PLANET_COUNT, WORLD_HEIGHT, WORLD_WIDTH } from './constants';
+import {
+  BOOST_FUEL_MAX,
+  BULLET_LIFETIME,
+  ENEMY_HEALTH,
+  ENEMY_PATROL_RADIUS,
+  ENEMY_REPATH_TIME,
+  HOMING_LIFETIME,
+  HOMING_TURN_RATE,
+  PLANET_COUNT,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+} from './constants';
 import { Entity } from './entity';
 import { Color, Pico8, PLANET_PALETTES, PlanetPalette } from './palette';
 
@@ -9,7 +20,60 @@ export function createShip(world: World<Entity>, x: number, y: number) {
     transform: { position: { x, y }, rotation: 0 },
     previous: { position: { x, y }, rotation: 0 },
     velocity: { x: 0, y: 0 },
-    ship: { thrusting: false },
+    ship: { thrusting: false, boosting: false, fuel: BOOST_FUEL_MAX },
+  });
+}
+
+export function createBullet(
+  world: World<Entity>,
+  x: number,
+  y: number,
+  rotation: number,
+  vx: number,
+  vy: number,
+) {
+  return world.createEntity({
+    transform: { position: { x, y }, rotation },
+    previous: { position: { x, y }, rotation },
+    velocity: { x: vx, y: vy },
+    bullet: { age: 0, maxAge: BULLET_LIFETIME },
+  });
+}
+
+export function createHomingBullet(
+  world: World<Entity>,
+  x: number,
+  y: number,
+  rotation: number,
+  vx: number,
+  vy: number,
+  target: Entity,
+) {
+  return world.createEntity({
+    transform: { position: { x, y }, rotation },
+    previous: { position: { x, y }, rotation },
+    velocity: { x: vx, y: vy },
+    bullet: { age: 0, maxAge: HOMING_LIFETIME },
+    homing: { turnRate: HOMING_TURN_RATE, target },
+  });
+}
+
+export function createEnemy(world: World<Entity>, x: number, y: number) {
+  return world.createEntity({
+    transform: { position: { x, y }, rotation: rndRange(0, 360) },
+    previous: { position: { x, y }, rotation: 0 },
+    velocity: { x: 0, y: 0 },
+    enemy: {
+      health: ENEMY_HEALTH,
+      hitFlash: 0,
+      respawnTimer: 0,
+      state: 'patrol',
+      waypoint: {
+        x: x + rndRange(-ENEMY_PATROL_RADIUS, ENEMY_PATROL_RADIUS),
+        y: y + rndRange(-ENEMY_PATROL_RADIUS, ENEMY_PATROL_RADIUS),
+      },
+      repathTimer: rndRange(1, ENEMY_REPATH_TIME),
+    },
   });
 }
 
@@ -77,9 +141,9 @@ const STAR_LAYERS: Array<{
   colors: Color[];
   bigChance: number;
 }> = [
-  { count: 52, depth: 0.3, colors: [Pico8.darkGray, Pico8.lavender], bigChance: 0 },
-  { count: 36, depth: 0.55, colors: [Pico8.lavender, Pico8.lightGray], bigChance: 0 },
-  { count: 24, depth: 0.85, colors: [Pico8.lightGray, Pico8.white], bigChance: 0.2 },
+  { count: 116, depth: 0.3, colors: [Pico8.darkGray, Pico8.lavender], bigChance: 0 },
+  { count: 80, depth: 0.55, colors: [Pico8.lavender, Pico8.lightGray], bigChance: 0 },
+  { count: 54, depth: 0.85, colors: [Pico8.lightGray, Pico8.white], bigChance: 0.2 },
 ];
 
 /** Scatter parallax star layers; ring the planets around the spawn point so

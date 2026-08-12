@@ -13,7 +13,11 @@ export type Entity = {
   /** Snapshot of the transform at the previous fixed step, for interpolation. */
   previous?: Transform;
   velocity?: Vec2;
-  ship?: { thrusting: boolean };
+  ship?: {
+    thrusting: boolean;
+    boosting: boolean; // boost held and fuel remaining this frame
+    fuel: number; // boost fuel, 0..BOOST_FUEL_MAX
+  };
   planet?: { radius: number; dark: Color; base: Color; light: Color };
   /** `depth` is the parallax factor: 1 scrolls with the world, lower is farther. */
   star?: { color: Color; size: number; depth: number };
@@ -21,4 +25,17 @@ export type Entity = {
   pulse?: { time: number; speed: number; amplitude: number };
   /** A short-lived exhaust pixel. `kind` selects its color ramp. */
   particle?: { age: number; maxAge: number; kind: string; size: number };
+  /** A player shot: flies along `transform.rotation`, expires after `maxAge`. */
+  bullet?: { age: number; maxAge: number };
+  /** Makes a bullet steer toward `target` at up to `turnRate` deg/s. */
+  homing?: { turnRate: number; target: Entity };
+  /** A patrolling/pursuing foe. */
+  enemy?: {
+    health: number;
+    hitFlash: number;
+    respawnTimer: number;
+    state: 'patrol' | 'engage';
+    waypoint: Vec2;
+    repathTimer: number;
+  };
 };

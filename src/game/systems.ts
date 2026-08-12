@@ -6,7 +6,13 @@ import {
   World,
 } from '../lib/objecs/world';
 import { createParticle } from './factories';
+import { actions } from './input';
 import {
+  BOOST_DASH_COST,
+  BOOST_DASH_IMPULSE,
+  BOOST_DRAIN,
+  BOOST_FUEL_MAX,
+  BOOST_REFILL,
   GAME_HEIGHT,
   GAME_WIDTH,
   LIGHT_DIR_X,
@@ -16,7 +22,8 @@ import {
   SHAKE_THRESHOLD,
   SHIP_BOOST_THRUST,
   SHIP_BRAKE,
-  SHIP_DRAG,
+  SHIP_FORWARD_DRAG,
+  SHIP_LATERAL_DRAG,
   SHIP_MAX_SPEED,
   SHIP_ROTATION_SPEED,
   SHIP_THRUST,
@@ -76,53 +83,92 @@ export function setShipSprite(
 
 const DEG_TO_RAD = Math.PI / 180;
 
-/** Advance the ship one fixed step: input, thrust, drag, clamp, integrate. */
+/** Shortest signed angle a→b in degrees, wrapped to [-180, 180]. */
+function angleDiff(from: number, to: number): number {
+  let diff = to - from;
+  while (diff > 180) diff -= 360;
+  while (diff < -180) diff += 360;
+  return diff;
+}
+
+// Edge-detect the boost input across fixed steps (for the tap-dash).
+let prevBoost = false;
+
+/**
+ * Advance the ship one fixed step: input, steer, thrust/boost, grip, integrate.
+ * The analog stick sets an absolute target heading; keys/D-pad rotate at a fixed
+ * rate. Velocity is split into forward (nose) and lateral and dragged separately
+ * so the ship "grips" and goes where it points. Boost is gated by a fuel meter.
+ */
 export function shipSystem(dt: number) {
-  const rotateLeft =
-    love.keyboard.isDown('left') || love.keyboard.isDown('a');
-  const rotateRight =
-    love.keyboard.isDown('right') || love.keyboard.isDown('d');
-  const thrust = love.keyboard.isDown('up') || love.keyboard.isDown('w');
-  const brake = love.keyboard.isDown('down') || love.keyboard.isDown('s');
-  const boost = love.keyboard.isDown('z');
+  const rotateLeft = actions.rotateLeft();
+  const rotateRight = actions.rotateRight();
+  const steerHeading = actions.steerHeading();
+  const thrust = actions.thrust();
+  const brake = actions.brake();
+  const boost = actions.boost();
 
   for (const ship of ships.raw) {
-    // Snapshot the current transform so the renderer can interpolate.
     ship.previous.position.x = ship.transform.position.x;
     ship.previous.position.y = ship.transform.position.y;
     ship.previous.rotation = ship.transform.rotation;
 
-    if (rotateLeft) {
-      ship.transform.rotation -= SHIP_ROTATION_SPEED * dt;
-    }
-    if (rotateRight) {
-      ship.transform.rotation += SHIP_ROTATION_SPEED * dt;
+    const st = ship.ship;
+    const maxTurn = SHIP_ROTATION_SPEED * dt;
+
+    if (steerHeading !== undefined) {
+      // Rotate toward the stick's absolute heading, short way, capped.
+      const diff = angleDiff(ship.transform.rotation, steerHeading);
+      ship.transform.rotation += Math.max(-maxTurn, Math.min(maxTurn, diff));
+    } else {
+      if (rotateLeft) ship.transform.rotation -= maxTurn;
+      if (rotateRight) ship.transform.rotation += maxTurn;
     }
 
-    // Heading: rotation 0 points straight up.
     const rad = ship.transform.rotation * DEG_TO_RAD;
-    const headingX = Math.sin(rad);
-    const headingY = -Math.cos(rad);
+    const hx = Math.sin(rad);
+    const hy = -Math.cos(rad);
 
-    ship.ship.thrusting = false;
-    if (thrust || boost) {
-      const power = boost ? SHIP_BOOST_THRUST : SHIP_THRUST;
-      ship.velocity.x += headingX * power * dt;
-      ship.velocity.y += headingY * power * dt;
-      ship.ship.thrusting = true;
-      emitThrust(ship, headingX, headingY, boost);
+    // Tap-dash: a punchy forward burst on the boost press-edge, if there's fuel.
+    if (boost && !prevBoost && st.fuel >= BOOST_DASH_COST) {
+      ship.velocity.x += hx * BOOST_DASH_IMPULSE;
+      ship.velocity.y += hy * BOOST_DASH_IMPULSE;
+      st.fuel -= BOOST_DASH_COST;
+    }
+    const canBoost = boost && st.fuel > 0;
+
+    st.thrusting = false;
+    st.boosting = false;
+    if (thrust || canBoost) {
+      const power = canBoost ? SHIP_BOOST_THRUST : SHIP_THRUST;
+      ship.velocity.x += hx * power * dt;
+      ship.velocity.y += hy * power * dt;
+      st.thrusting = true;
+      st.boosting = canBoost;
+      emitThrust(ship, hx, hy, canBoost);
     }
     if (brake) {
-      ship.velocity.x -= headingX * SHIP_THRUST * SHIP_BRAKE * dt;
-      ship.velocity.y -= headingY * SHIP_THRUST * SHIP_BRAKE * dt;
+      ship.velocity.x -= hx * SHIP_THRUST * SHIP_BRAKE * dt;
+      ship.velocity.y -= hy * SHIP_THRUST * SHIP_BRAKE * dt;
     }
 
-    // Exponential drag — this is what makes the handling feel tight, not floaty.
-    const damping = Math.max(0, 1 - SHIP_DRAG * dt);
-    ship.velocity.x *= damping;
-    ship.velocity.y *= damping;
+    // Fuel: boosting drains it; anything else refills it.
+    if (canBoost) {
+      st.fuel = Math.max(0, st.fuel - BOOST_DRAIN * dt);
+    } else {
+      st.fuel = Math.min(BOOST_FUEL_MAX, st.fuel + BOOST_REFILL * dt);
+    }
 
-    // Clamp to top speed.
+    // Grip: split velocity into forward (along the nose) and lateral, drag each.
+    const perpX = -hy;
+    const perpY = hx;
+    const fwd = ship.velocity.x * hx + ship.velocity.y * hy;
+    const lat = ship.velocity.x * perpX + ship.velocity.y * perpY;
+    const newFwd = fwd * Math.max(0, 1 - SHIP_FORWARD_DRAG * dt);
+    const newLat = lat * Math.max(0, 1 - SHIP_LATERAL_DRAG * dt);
+    ship.velocity.x = hx * newFwd + perpX * newLat;
+    ship.velocity.y = hy * newFwd + perpY * newLat;
+
     const speedSq =
       ship.velocity.x * ship.velocity.x + ship.velocity.y * ship.velocity.y;
     if (speedSq > SHIP_MAX_SPEED * SHIP_MAX_SPEED) {
@@ -134,6 +180,8 @@ export function shipSystem(dt: number) {
     ship.transform.position.x += ship.velocity.x * dt;
     ship.transform.position.y += ship.velocity.y * dt;
   }
+
+  prevBoost = boost;
 }
 
 /** Spawn exhaust pixels from the ship's rear, streaming backward into world
